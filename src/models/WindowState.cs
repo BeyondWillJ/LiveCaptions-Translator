@@ -72,12 +72,18 @@ namespace LiveCaptionsTranslator.models
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private int fontSize = 15;
+        private string fontFamily = "Segoe UI";
+        private int fontWeight = 400;
+        private int fontStretch = 5;
+        private string fontStyle = "Normal";
+        private List<string> recentFontFaces = [];
         private Color fontColor = Color.White;
         private FontBold fontBold = FontBold.None;
         private double fontStroke = 0.0;
 
         private Color backgroundColor = Color.Black;
         private int opacity = 150;
+        private double silenceClearDelay = 1.5;
 
         public int FontSize
         {
@@ -86,6 +92,51 @@ namespace LiveCaptionsTranslator.models
             {
                 fontSize = value;
                 OnPropertyChanged("FontSize");
+            }
+        }
+        public string FontFamily
+        {
+            get => fontFamily;
+            set
+            {
+                fontFamily = value;
+                OnPropertyChanged("FontFamily");
+            }
+        }
+        public int FontWeight
+        {
+            get => fontWeight;
+            set
+            {
+                fontWeight = value;
+                OnPropertyChanged("FontWeight");
+            }
+        }
+        public int FontStretch
+        {
+            get => fontStretch;
+            set
+            {
+                fontStretch = value;
+                OnPropertyChanged("FontStretch");
+            }
+        }
+        public string FontStyle
+        {
+            get => fontStyle;
+            set
+            {
+                fontStyle = value;
+                OnPropertyChanged("FontStyle");
+            }
+        }
+        public List<string> RecentFontFaces
+        {
+            get => recentFontFaces;
+            set
+            {
+                recentFontFaces = value;
+                OnPropertyChanged("RecentFontFaces");
             }
         }
         public Color FontColor
@@ -131,6 +182,15 @@ namespace LiveCaptionsTranslator.models
             {
                 opacity = value;
                 OnPropertyChanged("Opacity");
+            }
+        }
+        public double SilenceClearDelay
+        {
+            get => silenceClearDelay;
+            set
+            {
+                silenceClearDelay = value;
+                OnPropertyChanged("SilenceClearDelay");
             }
         }
 

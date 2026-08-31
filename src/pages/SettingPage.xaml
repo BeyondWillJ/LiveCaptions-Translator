@@ -292,6 +292,54 @@
                     </ui:Flyout>
                 </StackPanel>
             </StackPanel>
+            <StackPanel Margin="15,10,0,0" Orientation="Vertical">
+                <TextBlock Margin="2.5,0,0,5" Text="Overlay Font" />
+                <ComboBox
+                    x:Name="OverlayFontFamilyBox"
+                    Width="135"
+                    Height="30"
+                    Padding="10,4,10,7"
+                    FontSize="13.3"
+                    IsEditable="True"
+                    IsTextSearchEnabled="False"
+                    DropDownOpened="OverlayFontFamilyBox_DropDownOpened"
+                    KeyUp="OverlayFontFamilyBox_KeyUp"
+                    SelectionChanged="OverlayFontFamilyBox_SelectionChanged" />
+            </StackPanel>
+            <StackPanel Margin="15,10,0,0" Orientation="Vertical">
+                <TextBlock Margin="2.5,0,0,5" Text="Clear After Silence (s)" />
+                <ui:NumberBox
+                    Width="135"
+                    Height="30"
+                    Padding="10,4,10,7"
+                    FontSize="13.3"
+                    ClearButtonEnabled="False"
+                    AcceptsExpression="False"
+                    SpinButtonPlacementMode="Inline"
+                    Maximum="10"
+                    Minimum="0"
+                    LargeChange="0.5"
+                    SmallChange="0.5"
+                    ToolTip="0 disables automatic Overlay clearing"
+                    Value="{Binding OverlayWindow.SilenceClearDelay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+            <StackPanel Margin="15,10,0,0" Orientation="Vertical">
+                <TextBlock Margin="2.5,0,0,5" Text="UI Language" />
+                <ComboBox
+                    x:Name="UiLanguageBox"
+                    Width="135"
+                    Height="30"
+                    Padding="10,4,10,7"
+                    FontSize="13.3"
+                    SelectedValue="{Binding UiLanguage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    SelectedValuePath="Tag"
+                    SelectionChanged="UiLanguageBox_SelectionChanged">
+                    <ComboBoxItem Content="简体中文" Tag="zh-CN" />
+                    <ComboBoxItem Content="日本語" Tag="ja-JP" />
+                    <ComboBoxItem Content="English" Tag="en-US" />
+                    <ComboBoxItem Content="繁體中文" Tag="zh-TW" />
+                </ComboBox>
+            </StackPanel>
         </StackPanel>
     </Grid>
 </Page>

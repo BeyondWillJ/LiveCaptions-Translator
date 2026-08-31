@@ -69,13 +69,13 @@ namespace LiveCaptionsTranslator
             {
                 Title = new TextBlock
                 {
-                    Text = "Do you want to delete all history?",
+                    Text = LocalizationService.Get("Do you want to delete all history?"),
                     FontSize = 18,
                     FontWeight = FontWeights.Regular
                 },
-                Content = "This operation cannot be undone!",
-                PrimaryButtonText = "Yes",
-                CloseButtonText = "No",
+                Content = LocalizationService.Get("This operation cannot be undone!"),
+                PrimaryButtonText = LocalizationService.Get("Yes"),
+                CloseButtonText = LocalizationService.Get("No"),
                 DefaultButton = ContentDialogButton.Close,
                 DialogHost = dialogHostContainer,
                 Padding = new Thickness(8, 4, 8, 8),
@@ -127,11 +127,13 @@ namespace LiveCaptionsTranslator
                 try
                 {
                     await SQLiteHistoryLogger.ExportToCSV(saveFileDialog.FileName);
-                    SnackbarHost.Show("Saved Success.", $"File saved to: {saveFileDialog.FileName}", SnackbarType.Success);
+                    SnackbarHost.Show(LocalizationService.Get("Saved Success."),
+                        $"{LocalizationService.Get("File saved to:")} {saveFileDialog.FileName}", SnackbarType.Success);
                 }
                 catch (Exception ex)
                 {
-                    SnackbarHost.Show("Save Failed.", $"File saved faild:{ex.Message}", SnackbarType.Error);
+                    SnackbarHost.Show(LocalizationService.Get("Save Failed."),
+                        $"{LocalizationService.Get("Failed to save file:")} {ex.Message}", SnackbarType.Error);
                 }
             }
         }

@@ -8,6 +8,7 @@ namespace LiveCaptionsTranslator
     {
         App()
         {
+            LocalizationService.Initialize(Translator.Setting?.UiLanguage ?? "zh-CN");
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
             Translator.Setting?.Save();
 

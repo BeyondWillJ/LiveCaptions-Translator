@@ -9,6 +9,7 @@ using System.Windows.Threading;
 using Wpf.Ui.Controls;
 
 using LiveCaptionsTranslator.apis;
+using LiveCaptionsTranslator.utils;
 using LiveCaptionsTranslator.Utils;
 using Button = Wpf.Ui.Controls.Button;
 using Color = System.Windows.Media.Color;
@@ -30,6 +31,14 @@ namespace LiveCaptionsTranslator
             {ColorEnum.Black, Brushes.Black},
         };
         private CaptionVisible onlyMode = CaptionVisible.Both;
+        private readonly DispatcherTimer silenceClearTimer = new();
+        private string lastOriginalCaption = string.Empty;
+        private string lastCurrentTranslation = string.Empty;
+        private string lastPreviousTranslation = string.Empty;
+        private string lastNoticePrefix = string.Empty;
+        private string clearedOriginalPrefix = string.Empty;
+        private string clearedTranslationPrefix = string.Empty;
+        private bool overlayWasCleared;
 
         public CaptionVisible OnlyMode
         {
@@ -47,8 +56,9 @@ namespace LiveCaptionsTranslator
             InitializeComponent();
             DataContext = Translator.Caption;
 
-            Loaded += (s, e) => Translator.Caption.PropertyChanged += TranslatedChanged;
-            Unloaded += (s, e) => Translator.Caption.PropertyChanged -= TranslatedChanged;
+            silenceClearTimer.Tick += SilenceClearTimer_Tick;
+            Loaded += OverlayWindow_Loaded;
+            Unloaded += OverlayWindow_Unloaded;
 
             OriginalCaption.FontWeight = Translator.Setting.OverlayWindow.FontBold == Utils.FontBold.Both ?
                 FontWeights.Bold : FontWeights.Regular;
@@ -65,7 +75,23 @@ namespace LiveCaptionsTranslator
             BorderBackground.Opacity = Translator.Setting.OverlayWindow.Opacity;
 
             ApplyFontSize();
+            ApplyFontFamily();
             ApplyBackgroundOpacity();
+        }
+
+        private void OverlayWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            Translator.Caption.PropertyChanged += TranslatedChanged;
+            Translator.Setting.OverlayWindow.PropertyChanged += OverlaySettingChanged;
+            CaptureOverlayText();
+            RestartSilenceClearTimer();
+        }
+
+        private void OverlayWindow_Unloaded(object sender, RoutedEventArgs e)
+        {
+            silenceClearTimer.Stop();
+            Translator.Caption.PropertyChanged -= TranslatedChanged;
+            Translator.Setting.OverlayWindow.PropertyChanged -= OverlaySettingChanged;
         }
 
         private void Border_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -142,7 +168,106 @@ namespace LiveCaptionsTranslator
 
         private void TranslatedChanged(object sender, PropertyChangedEventArgs e)
         {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(() => TranslatedChanged(sender, e)));
+                return;
+            }
+
             ApplyFontSize();
+
+            bool textChanged = e.PropertyName switch
+            {
+                "OverlayOriginalCaption" => UpdateIfChanged(ref lastOriginalCaption, Translator.Caption.OverlayOriginalCaption),
+                "OverlayCurrentTranslation" => UpdateIfChanged(ref lastCurrentTranslation, Translator.Caption.OverlayCurrentTranslation),
+                "OverlayPreviousTranslation" => UpdateIfChanged(ref lastPreviousTranslation, Translator.Caption.OverlayPreviousTranslation),
+                "OverlayNoticePrefix" => UpdateIfChanged(ref lastNoticePrefix, Translator.Caption.OverlayNoticePrefix),
+                _ => false
+            };
+
+            if (!textChanged)
+                return;
+
+            Dispatcher.BeginInvoke(new Action(ApplyPostClearDisplay), DispatcherPriority.DataBind);
+            RestartSilenceClearTimer();
+        }
+
+        private void OverlaySettingChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(() => OverlaySettingChanged(sender, e)));
+                return;
+            }
+
+            if (e.PropertyName is "FontFamily" or "FontWeight" or "FontStretch" or "FontStyle")
+                ApplyFontFamily();
+            else if (e.PropertyName == "SilenceClearDelay")
+                RestartSilenceClearTimer();
+        }
+
+        private static bool UpdateIfChanged(ref string previous, string current)
+        {
+            if (string.Equals(previous, current, StringComparison.Ordinal))
+                return false;
+            previous = current;
+            return true;
+        }
+
+        private void CaptureOverlayText()
+        {
+            lastOriginalCaption = Translator.Caption.OverlayOriginalCaption;
+            lastCurrentTranslation = Translator.Caption.OverlayCurrentTranslation;
+            lastPreviousTranslation = Translator.Caption.OverlayPreviousTranslation;
+            lastNoticePrefix = Translator.Caption.OverlayNoticePrefix;
+        }
+
+        private void RestartSilenceClearTimer()
+        {
+            silenceClearTimer.Stop();
+            double delay = Translator.Setting.OverlayWindow.SilenceClearDelay;
+            if (delay <= 0 || !IsLastSentenceComplete())
+                return;
+            silenceClearTimer.Interval = TimeSpan.FromSeconds(delay);
+            silenceClearTimer.Start();
+        }
+
+        private bool IsLastSentenceComplete()
+        {
+            string caption = lastOriginalCaption.TrimEnd();
+            return caption.Length > 0 && Array.IndexOf(TextUtil.PUNC_EOS, caption[^1]) >= 0;
+        }
+
+        private void SilenceClearTimer_Tick(object? sender, EventArgs e)
+        {
+            silenceClearTimer.Stop();
+            clearedOriginalPrefix = lastOriginalCaption;
+            clearedTranslationPrefix = lastCurrentTranslation;
+            overlayWasCleared = true;
+
+            OriginalCaption.SetCurrentValue(System.Windows.Controls.TextBlock.TextProperty, string.Empty);
+            NoticePrefixRun.SetCurrentValue(System.Windows.Documents.Run.TextProperty, string.Empty);
+            PreviousTranslationRun.SetCurrentValue(System.Windows.Documents.Run.TextProperty, string.Empty);
+            CurrentTranslationRun.SetCurrentValue(System.Windows.Documents.Run.TextProperty, string.Empty);
+        }
+
+        private void ApplyPostClearDisplay()
+        {
+            if (!overlayWasCleared)
+                return;
+
+            string original = lastOriginalCaption;
+            if (!string.IsNullOrEmpty(clearedOriginalPrefix) && original.StartsWith(clearedOriginalPrefix, StringComparison.Ordinal))
+                original = original[clearedOriginalPrefix.Length..].TrimStart();
+            OriginalCaption.SetCurrentValue(System.Windows.Controls.TextBlock.TextProperty, original);
+
+            string translation = lastCurrentTranslation;
+            if (!string.IsNullOrEmpty(clearedTranslationPrefix) && translation.StartsWith(clearedTranslationPrefix, StringComparison.Ordinal))
+                translation = translation[clearedTranslationPrefix.Length..].TrimStart();
+            CurrentTranslationRun.SetCurrentValue(System.Windows.Documents.Run.TextProperty, translation);
+            PreviousTranslationRun.SetCurrentValue(System.Windows.Documents.Run.TextProperty, string.Empty);
+            NoticePrefixRun.SetCurrentValue(System.Windows.Documents.Run.TextProperty,
+                string.IsNullOrEmpty(original) && string.IsNullOrEmpty(translation) ? string.Empty : lastNoticePrefix);
         }
 
         private void Window_MouseEnter(object sender, MouseEventArgs e)
@@ -178,25 +303,7 @@ namespace LiveCaptionsTranslator
             Translator.Setting.OverlayWindow.FontBold++;
             if (Translator.Setting.OverlayWindow.FontBold > Utils.FontBold.Both)
                 Translator.Setting.OverlayWindow.FontBold = Utils.FontBold.None;
-            switch (Translator.Setting.OverlayWindow.FontBold)
-            {
-                case Utils.FontBold.None:
-                    OriginalCaption.FontWeight = FontWeights.Regular;
-                    TranslatedCaption.FontWeight = FontWeights.Regular;
-                    break;
-                case Utils.FontBold.TranslationOnly:
-                    OriginalCaption.FontWeight = FontWeights.Regular;
-                    TranslatedCaption.FontWeight = FontWeights.Bold;
-                    break;
-                case Utils.FontBold.SubtitleOnly:
-                    OriginalCaption.FontWeight = FontWeights.Bold;
-                    TranslatedCaption.FontWeight = FontWeights.Regular;
-                    break;
-                case Utils.FontBold.Both:
-                    OriginalCaption.FontWeight = FontWeights.Bold;
-                    TranslatedCaption.FontWeight = FontWeights.Bold;
-                    break;
-            }
+            ApplyFontWeight();
         }
 
         private void FontStrokeIncrease_Click(object sender, RoutedEventArgs e)
@@ -342,6 +449,37 @@ namespace LiveCaptionsTranslator
                 OriginalCaption.FontSize = Translator.Setting.OverlayWindow.FontSize;
                 TranslatedCaption.FontSize = (int)(OriginalCaption.FontSize * 1.25);
             }), DispatcherPriority.Background);
+        }
+
+        public void ApplyFontFamily()
+        {
+            var fontFamily = new System.Windows.Media.FontFamily(Translator.Setting.OverlayWindow.FontFamily);
+            var fontStretch = System.Windows.FontStretch.FromOpenTypeStretch(
+                Math.Clamp(Translator.Setting.OverlayWindow.FontStretch, 1, 9));
+            var fontStyle = Translator.Setting.OverlayWindow.FontStyle switch
+            {
+                "Italic" => FontStyles.Italic,
+                "Oblique" => FontStyles.Oblique,
+                _ => FontStyles.Normal
+            };
+            OriginalCaption.FontFamily = fontFamily;
+            OriginalCaption.FontStretch = fontStretch;
+            OriginalCaption.FontStyle = fontStyle;
+            TranslatedCaption.FontFamily = fontFamily;
+            TranslatedCaption.FontStretch = fontStretch;
+            TranslatedCaption.FontStyle = fontStyle;
+            ApplyFontWeight();
+        }
+
+        private void ApplyFontWeight()
+        {
+            var selectedWeight = System.Windows.FontWeight.FromOpenTypeWeight(
+                Math.Clamp(Translator.Setting.OverlayWindow.FontWeight, 1, 999));
+            var boldMode = Translator.Setting.OverlayWindow.FontBold;
+            OriginalCaption.FontWeight = boldMode is Utils.FontBold.SubtitleOnly or Utils.FontBold.Both ?
+                FontWeights.Bold : selectedWeight;
+            TranslatedCaption.FontWeight = boldMode is Utils.FontBold.TranslationOnly or Utils.FontBold.Both ?
+                FontWeights.Bold : selectedWeight;
         }
 
         public void ApplyFontStroke()

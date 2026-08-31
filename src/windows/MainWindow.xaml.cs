@@ -180,7 +180,7 @@ namespace LiveCaptionsTranslator
             }
             catch (Exception ex)
             {
-                SnackbarHost.Show("[ERROR] Update Check Failed.", ex.Message, SnackbarType.Error,
+                SnackbarHost.Show(LocalizationService.Get("[ERROR] Update Check Failed."), ex.Message, SnackbarType.Error,
                     timeout: 2, closeButton: true);
 
                 return;
@@ -194,12 +194,12 @@ namespace LiveCaptionsTranslator
             {
                 var dialog = new Wpf.Ui.Controls.MessageBox
                 {
-                    Title = "New Version Available",
-                    Content = $"A new version has been detected: {latestVersion}\n" +
-                              $"Current version: {currentVersion}\n" +
-                              $"Please visit GitHub to download the latest release.",
-                    PrimaryButtonText = "Update",
-                    CloseButtonText = "Ignore this version"
+                    Title = LocalizationService.Get("New Version Available"),
+                    Content = $"{LocalizationService.Get("A new version has been detected:")} {latestVersion}\n" +
+                              $"{LocalizationService.Get("Current version:")} {currentVersion}\n" +
+                              LocalizationService.Get("Please visit GitHub to download the latest release."),
+                    PrimaryButtonText = LocalizationService.Get("Update"),
+                    CloseButtonText = LocalizationService.Get("Ignore this version")
                 };
                 var result = await dialog.ShowDialogAsync();
 
@@ -216,7 +216,7 @@ namespace LiveCaptionsTranslator
                     }
                     catch (Exception ex)
                     {
-                        SnackbarHost.Show("[ERROR] Open Browser Failed.", ex.Message, SnackbarType.Error,
+                        SnackbarHost.Show(LocalizationService.Get("[ERROR] Open Browser Failed."), ex.Message, SnackbarType.Error,
                             timeout: 2, closeButton: true);
                     }
                 }
