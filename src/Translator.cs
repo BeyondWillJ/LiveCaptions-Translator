@@ -164,7 +164,7 @@ namespace LiveCaptionsTranslator
                 // Check LiveCaptions.exe still alive
                 if (Window == null)
                 {
-                    Caption.DisplayTranslatedCaption = "[WARNING] LiveCaptions was unexpectedly closed, restarting...";
+                    Caption.DisplayTranslatedCaption = LocalizationService.Get("[WARNING] LiveCaptions was unexpectedly closed, restarting...");
                     Window = LiveCaptionsHandler.LaunchLiveCaptions();
                     Caption.DisplayTranslatedCaption = "";
                 }
@@ -199,8 +199,8 @@ namespace LiveCaptionsTranslator
                 if (LogOnlyFlag)
                 {
                     Caption.TranslatedCaption = string.Empty;
-                    Caption.DisplayTranslatedCaption = "[Paused]";
-                    Caption.OverlayNoticePrefix = "[Paused]";
+                    Caption.DisplayTranslatedCaption = LocalizationService.Get("[Paused]");
+                    Caption.OverlayNoticePrefix = LocalizationService.Get("[Paused]");
                     Caption.OverlayCurrentTranslation = string.Empty;
                 }
                 else if (!string.IsNullOrEmpty(RegexPatterns.NoticePrefix().Replace(
@@ -295,7 +295,7 @@ namespace LiveCaptionsTranslator
             }
             catch (Exception ex)
             {
-                SnackbarHost.Show("[ERROR] Logging history failed.", ex.Message, SnackbarType.Error,
+                SnackbarHost.Show(LocalizationService.Get("[ERROR] Logging history failed."), ex.Message, SnackbarType.Error,
                     timeout: 2, closeButton: true);
             }
         }
@@ -315,7 +315,7 @@ namespace LiveCaptionsTranslator
             }
             catch (Exception ex)
             {
-                SnackbarHost.Show("[ERROR] Logging history failed.", ex.Message, SnackbarType.Error,
+                SnackbarHost.Show(LocalizationService.Get("[ERROR] Logging history failed."), ex.Message, SnackbarType.Error,
                     timeout: 2, closeButton: true);
             }
         }

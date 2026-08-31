@@ -296,15 +296,39 @@
                 <TextBlock Margin="2.5,0,0,5" Text="Overlay Font" />
                 <ComboBox
                     x:Name="OverlayFontFamilyBox"
-                    Width="135"
+                    Width="160"
                     Height="30"
                     Padding="10,4,10,7"
                     FontSize="13.3"
                     IsEditable="True"
                     IsTextSearchEnabled="False"
+                    MaxDropDownHeight="360"
+                    ScrollViewer.CanContentScroll="True"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    StaysOpenOnEdit="True"
+                    VirtualizingPanel.IsContainerVirtualizable="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
                     DropDownOpened="OverlayFontFamilyBox_DropDownOpened"
-                    KeyUp="OverlayFontFamilyBox_KeyUp"
-                    SelectionChanged="OverlayFontFamilyBox_SelectionChanged" />
+                    SelectionChanged="OverlayFontFamilyBox_SelectionChanged">
+                    <ComboBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel VirtualizationMode="Recycling" />
+                        </ItemsPanelTemplate>
+                    </ComboBox.ItemsPanel>
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock
+                                Padding="2"
+                                FontFamily="{Binding Family}"
+                                FontSize="15"
+                                FontStretch="{Binding Typeface.Stretch}"
+                                FontStyle="{Binding Typeface.Style}"
+                                FontWeight="{Binding Typeface.Weight}"
+                                Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
             </StackPanel>
             <StackPanel Margin="15,10,0,0" Orientation="Vertical">
                 <TextBlock Margin="2.5,0,0,5" Text="Clear After Silence (s)" />

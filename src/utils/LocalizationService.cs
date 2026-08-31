@@ -20,6 +20,7 @@ namespace LiveCaptionsTranslator.utils
                 ["zh-TW"] = new(StringComparer.Ordinal)
             };
         private static readonly ConditionalWeakTable<DependencyObject, Dictionary<string, string>> Originals = new();
+        private static readonly Dictionary<string, string> CanonicalSources = new(StringComparer.Ordinal);
         private static bool initialized;
 
         public static string CurrentLanguage { get; private set; } = "zh-CN";
@@ -154,7 +155,7 @@ namespace LiveCaptionsTranslator.utils
             Add("greater than or equal", "大于或等于", "以上にしてください。", "大於或等於");
             Add("Display Sentences. If not met, the program will automatically adjust them.", "显示句数，否则程序会自动调整。", "条件を満たさない場合は自動調整されます。", "顯示句數，否則程式會自動調整。");
             Add("The {0} in the prompt indicates the target language, so make sure your prompt includes {0}.", "提示词中的 {0} 表示目标语言，请确保提示词包含 {0}。", "プロンプト内の {0} は翻訳先言語を表すため、必ず {0} を含めてください。", "提示詞中的 {0} 表示目標語言，請確保提示詞包含 {0}。");
-            Add("The source text is enclosed with 馃敜.", "源文本会由 🔤 包围。", "原文は 🔤 で囲まれます。", "來源文字會由 🔤 包圍。");
+            Add("The source text is enclosed with 🔤.", "源文本会由 🔤 包围。", "原文は 🔤 で囲まれます。", "來源文字會由 🔤 包圍。");
             Add("Base URL ending with", "基础 URL 结尾为", "末尾が次のベース URL：", "基礎 URL 結尾為");
             Add("Use Full Url (typically ending with", "使用完整 URL（通常结尾为", "完全な URL を使用（通常の末尾：", "使用完整 URL（通常結尾為");
             Add(". Chat endpoint and models are appended automatically.", "。聊天端点和模型路径会自动追加。", "。チャットのエンドポイントとモデルは自動追加されます。", "。聊天端點和模型路徑會自動加入。");
@@ -185,6 +186,25 @@ namespace LiveCaptionsTranslator.utils
             Add("Please visit GitHub to download the latest release.", "请前往 GitHub 下载最新版本。", "GitHub から最新版をダウンロードしてください。", "請前往 GitHub 下載最新版本。");
             Add("Update", "更新", "更新", "更新");
             Add("Ignore this version", "忽略此版本", "このバージョンを無視", "忽略此版本");
+            Add("CaptionPage", "字幕", "字幕", "字幕");
+            Add("SettingPage", "设置", "設定", "設定");
+            Add("HistoryPage", "历史", "履歴", "歷史");
+            Add("InfoPage", "信息", "情報", "資訊");
+            Add("Previous", "上一页", "前のページ", "上一頁");
+            Add("Please set the API URL first.", "请先设置 API 地址。", "先に API URL を設定してください。", "請先設定 API 網址。");
+            Add("Loaded {0} model(s).", "已加载 {0} 个模型。", "{0} 個のモデルを読み込みました。", "已載入 {0} 個模型。");
+            Add("No models found or unable to connect. Check that the server is running.", "未找到模型或无法连接，请确认服务器正在运行。", "モデルが見つからないか接続できません。サーバーが起動していることを確認してください。", "未找到模型或無法連線，請確認伺服器正在執行。");
+            Add("Copied.", "已复制。", "コピーしました。", "已複製。");
+            Add("Copy Failed.", "复制失败。", "コピーに失敗しました。", "複製失敗。");
+            Add("[Paused]", "[已暂停]", "[一時停止]", "[已暫停]");
+            Add("[WARNING] LiveCaptions was unexpectedly closed, restarting...", "[警告] 实时字幕意外关闭，正在重新启动……", "[警告] ライブ キャプションが予期せず終了しました。再起動しています…", "[警告] 即時字幕意外關閉，正在重新啟動……");
+            Add("[ERROR] Logging history failed.", "[错误] 写入历史记录失败。", "[エラー] 履歴の記録に失敗しました。", "[錯誤] 寫入歷史記錄失敗。");
+            Add(") instead of Base Url (typically ending with just", "），而不是基础 URL（通常仅以", "）を使用し、ベース URL（通常の末尾：", "），而不是基礎 URL（通常僅以");
+            Add("⚙️ gear", "⚙️ 齿轮", "⚙️ 歯車", "⚙️ 齒輪");
+
+            foreach (var language in Translations.Values)
+                foreach (var pair in language)
+                    CanonicalSources.TryAdd(pair.Value, pair.Key);
         }
 
         public static void Initialize(string language)
@@ -200,7 +220,8 @@ namespace LiveCaptionsTranslator.utils
 
         public static void SetLanguage(string language, bool save = true)
         {
-            CurrentLanguage = Translations.ContainsKey(language) || language == "en-US" ? language : "zh-CN";
+            string normalized = Translations.ContainsKey(language) || language == "en-US" ? language : "zh-CN";
+            CurrentLanguage = normalized;
             CultureInfo culture = CultureInfo.GetCultureInfo(CurrentLanguage);
             CultureInfo.CurrentCulture = culture;
             CultureInfo.CurrentUICulture = culture;
@@ -226,6 +247,11 @@ namespace LiveCaptionsTranslator.utils
             Translations["ja-JP"][source] = japanese;
             Translations["zh-TW"][source] = traditionalChinese;
         }
+
+        public static void Refresh(DependencyObject root) => LocalizeTree(root);
+
+        public static string Format(string source, params object[] args) =>
+            string.Format(CultureInfo.CurrentCulture, Get(source), args);
 
         private static void Element_Loaded(object sender, RoutedEventArgs e)
         {
@@ -260,11 +286,19 @@ namespace LiveCaptionsTranslator.utils
                 Translate(window, "Title", Window.TitleProperty, () => window.Title, value => window.Title = value);
             if (element is System.Windows.Controls.TextBlock textBlock)
             {
-                Translate(textBlock, "Text", System.Windows.Controls.TextBlock.TextProperty,
-                    () => textBlock.Text, value => textBlock.Text = value);
-                foreach (Inline inline in textBlock.Inlines)
-                    if (inline is Run run)
-                        Translate(run, "Text", Run.TextProperty, () => run.Text, value => run.Text = value);
+                if (!BindingOperations.IsDataBound(textBlock, System.Windows.Controls.TextBlock.TextProperty))
+                {
+                    if (textBlock.Inlines.Count > 0)
+                    {
+                        foreach (Run run in textBlock.Inlines.OfType<Run>().ToList())
+                            Translate(run, "Text", Run.TextProperty, () => run.Text, value => run.Text = value);
+                    }
+                    else
+                    {
+                        Translate(textBlock, "Text", System.Windows.Controls.TextBlock.TextProperty,
+                            () => textBlock.Text, value => textBlock.Text = value);
+                    }
+                }
             }
             if (element is ContentControl contentControl && contentControl.Content is string)
                 Translate(contentControl, "Content", ContentControl.ContentProperty,
@@ -294,7 +328,7 @@ namespace LiveCaptionsTranslator.utils
                     var originals = Originals.GetOrCreateValue(column);
                     if (!originals.TryGetValue("Header", out string? source))
                     {
-                        source = (string)column.Header;
+                        source = Canonicalize((string)column.Header);
                         originals["Header"] = source;
                     }
                     column.Header = Get(source);
@@ -325,10 +359,13 @@ namespace LiveCaptionsTranslator.utils
             var originals = Originals.GetOrCreateValue(owner);
             if (!originals.TryGetValue(propertyName, out string? source))
             {
-                source = getter();
+                source = Canonicalize(getter());
                 originals[propertyName] = source;
             }
             setter(Get(source));
         }
+
+        private static string Canonicalize(string value) =>
+            CanonicalSources.TryGetValue(value, out string? source) ? source : value;
     }
 }

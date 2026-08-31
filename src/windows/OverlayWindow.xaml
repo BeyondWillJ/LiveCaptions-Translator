@@ -9,8 +9,8 @@
     Title="Overlay Window"
     Width="650"
     Height="135"
-    MinWidth="650"
-    MinHeight="135"
+    MinWidth="320"
+    MinHeight="80"
     AllowsTransparency="True"
     Background="Transparent"
     MouseEnter="Window_MouseEnter"
@@ -19,7 +19,6 @@
     ShowInTaskbar="False"
     Topmost="True"
     WindowStyle="None"
-    SizeToContent="Height"
     mc:Ignorable="d">
 
     <Window.Resources>
@@ -40,7 +39,7 @@
             MouseLeftButtonDown="Border_MouseLeftButtonDown">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <Grid.Resources>
@@ -55,7 +54,7 @@
                     Grid.Row="0"
                     Margin="5,2,5,2"
                     Padding="8"
-                    VerticalAlignment="Top"
+                    VerticalAlignment="Stretch"
                     Background="Transparent"
                     BorderThickness="0">
                     <local:StrokeDecorator
@@ -66,9 +65,9 @@
                             x:Name="TranslatedCaption"
                             FontSize="18"
                             Style="{StaticResource CaptionBlockStyle}">
-                            <Run x:Name="NoticePrefixRun" Text="{Binding OverlayNoticePrefix, UpdateSourceTrigger=PropertyChanged}" />
-                            <Run x:Name="PreviousTranslationRun" Text="{Binding OverlayPreviousTranslation, Mode=OneWay}" />
-                            <Run x:Name="CurrentTranslationRun" Text="{Binding OverlayCurrentTranslation, UpdateSourceTrigger=PropertyChanged}" />
+                            <Run x:Name="NoticePrefixRun" />
+                            <Run x:Name="PreviousTranslationRun" />
+                            <Run x:Name="CurrentTranslationRun" />
                         </TextBlock>
                     </local:StrokeDecorator>
                 </ui:Card>
@@ -77,7 +76,7 @@
                     Grid.Row="1"
                     Margin="5,2,5,2"
                     Padding="8"
-                    VerticalAlignment="Top"
+                    VerticalAlignment="Stretch"
                     Background="Transparent"
                     BorderThickness="0">
                     <local:StrokeDecorator
@@ -87,8 +86,7 @@
                         <TextBlock
                             x:Name="OriginalCaption"
                             FontSize="15"
-                            Style="{StaticResource CaptionBlockStyle}"
-                            Text="{Binding OverlayOriginalCaption, UpdateSourceTrigger=PropertyChanged}">
+                            Style="{StaticResource CaptionBlockStyle}">
                         </TextBlock>
                     </local:StrokeDecorator>
                 </ui:Card>
@@ -141,9 +139,9 @@
                                              Filled=False}"
                         ToolTip="Font Bold" />
                     <ui:Button
-                        x:Name="FontColorCycle"
+                        x:Name="FontColorPicker"
                         Background="#FFAAAAAA"
-                        Click="FontColorCycle_Click"
+                        Click="FontColorPicker_Click"
                         Cursor="Hand"
                         Icon="{ui:SymbolIcon color16,
                                              Filled=False}"
@@ -167,9 +165,9 @@
                                              Filled=False}"
                         ToolTip="Background Opacity Decrease" />
                     <ui:Button
-                        x:Name="BackgroundColorCycle"
+                        x:Name="BackgroundColorPicker"
                         Background="#FFAAAAAA"
-                        Click="BackgroundColorCycle_Click"
+                        Click="BackgroundColorPicker_Click"
                         Cursor="Hand"
                         Icon="{ui:SymbolIcon color16,
                                              Filled=False}"

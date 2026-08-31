@@ -1,8 +1,11 @@
 ﻿using System.Reflection;
+using System.Collections;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Wpf.Ui.Appearance;
 
 using LiveCaptionsTranslator.models;
@@ -16,7 +19,14 @@ namespace LiveCaptionsTranslator
         private const int PAGE_HEIGHT = 350;
         private static SettingWindow? SettingWindow;
         private List<FontChoice> fontChoices = [];
+        private ListCollectionView? fontChoicesView;
+        private readonly DispatcherTimer fontSearchTimer = new() { Interval = TimeSpan.FromMilliseconds(140) };
+        private System.Windows.Controls.TextBox? fontSearchBox;
+        private string pendingFontSearch = string.Empty;
+        private bool fontPickerInitialized;
         private bool updatingFontChoices;
+        private bool suppressFontSearch;
+        private bool suppressLanguageChange = true;
 
         public SettingPage()
         {
@@ -24,21 +34,29 @@ namespace LiveCaptionsTranslator
             ApplicationThemeManager.ApplySystemTheme();
             DataContext = Translator.Setting;
 
-            Loaded += (s, e) =>
-            {
-                (App.Current.MainWindow as MainWindow)?.AutoHeightAdjust(
-                    minHeight: PAGE_HEIGHT, maxHeight: PAGE_HEIGHT);
-                CheckForFirstUse();
-            };
+            Loaded += SettingPage_Loaded;
+            fontSearchTimer.Tick += FontSearchTimer_Tick;
 
             TranslateAPIBox.ItemsSource = Translator.Setting?.Configs.Keys;
             TranslateAPIBox.SelectedIndex = 0;
 
-            LoadFontChoices();
-            RefreshFontChoices();
-            SelectConfiguredFont();
-
             LoadAPISetting();
+        }
+
+        private async void SettingPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            (App.Current.MainWindow as MainWindow)?.AutoHeightAdjust(
+                minHeight: PAGE_HEIGHT, maxHeight: PAGE_HEIGHT);
+            CheckForFirstUse();
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                suppressLanguageChange = true;
+                UiLanguageBox.SelectedValue = Translator.Setting.UiLanguage;
+                suppressLanguageChange = false;
+                InitializeFontPicker();
+                LocalizationService.Refresh(this);
+            }, DispatcherPriority.ContextIdle);
         }
 
         private void LiveCaptionsButton_click(object sender, RoutedEventArgs e)
@@ -83,6 +101,7 @@ namespace LiveCaptionsTranslator
             if (updatingFontChoices || OverlayFontFamilyBox.SelectedItem is not FontChoice choice)
                 return;
 
+            suppressFontSearch = true;
             Translator.Setting.OverlayWindow.FontFamily = choice.Family.Source;
             Translator.Setting.OverlayWindow.FontWeight = choice.Typeface.Weight.ToOpenTypeWeight();
             Translator.Setting.OverlayWindow.FontStretch = choice.Typeface.Stretch.ToOpenTypeStretch();
@@ -94,53 +113,69 @@ namespace LiveCaptionsTranslator
             if (recent.Count > 5)
                 recent.RemoveRange(5, recent.Count - 5);
             Translator.Setting.OverlayWindow.OnPropertyChanged("RecentFontFaces");
+            ApplyFontSort();
+            Dispatcher.BeginInvoke(new Action(() => suppressFontSearch = false), DispatcherPriority.ContextIdle);
         }
 
-        private void OverlayFontFamilyBox_KeyUp(object sender, KeyEventArgs e)
+        private void FontSearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (e.Key is Key.Up or Key.Down or Key.Enter or Key.Escape or Key.Tab)
+            if (suppressFontSearch || fontSearchBox == null)
                 return;
-            RefreshFontChoices(OverlayFontFamilyBox.Text);
+            pendingFontSearch = fontSearchBox.Text.Trim();
+            fontSearchTimer.Stop();
+            fontSearchTimer.Start();
             OverlayFontFamilyBox.IsDropDownOpen = true;
+        }
+
+        private void FontSearchTimer_Tick(object? sender, EventArgs e)
+        {
+            fontSearchTimer.Stop();
+            if (fontChoicesView == null)
+                return;
+            string query = pendingFontSearch;
+            fontChoicesView.Filter = string.IsNullOrWhiteSpace(query) ? null :
+                item => item is FontChoice choice && choice.SearchName.Contains(
+                    query, StringComparison.CurrentCultureIgnoreCase);
+            fontChoicesView.Refresh();
         }
 
         private void OverlayFontFamilyBox_DropDownOpened(object sender, EventArgs e)
         {
-            if (!string.IsNullOrWhiteSpace(OverlayFontFamilyBox.Text) &&
-                OverlayFontFamilyBox.SelectedItem == null)
+            if (OverlayFontFamilyBox.SelectedItem != null && fontChoicesView?.Filter != null)
+            {
+                fontSearchTimer.Stop();
+                pendingFontSearch = string.Empty;
+                fontChoicesView.Filter = null;
+                fontChoicesView.Refresh();
+            }
+        }
+
+        private void InitializeFontPicker()
+        {
+            if (fontPickerInitialized)
                 return;
-            var selected = OverlayFontFamilyBox.SelectedItem;
-            RefreshFontChoices();
-            updatingFontChoices = true;
-            OverlayFontFamilyBox.SelectedItem = selected;
-            updatingFontChoices = false;
-        }
-
-        private void RefreshFontChoices(string search = "")
-        {
-            var recent = Translator.Setting.OverlayWindow.RecentFontFaces;
-            IEnumerable<FontChoice> filtered = fontChoices;
-            if (!string.IsNullOrWhiteSpace(search))
-                filtered = filtered.Where(choice => choice.DisplayName.Contains(
-                    search.Trim(), StringComparison.CurrentCultureIgnoreCase));
-
-            updatingFontChoices = true;
-            OverlayFontFamilyBox.ItemsSource = filtered
-                .OrderBy(choice =>
-                {
-                    int index = recent.IndexOf(choice.Key);
-                    return index < 0 ? int.MaxValue : index;
-                })
-                .ThenBy(choice => choice.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
-            updatingFontChoices = false;
-        }
-
-        private void LoadFontChoices()
-        {
+            fontPickerInitialized = true;
             fontChoices = Fonts.SystemFontFamilies
                 .SelectMany(family => family.GetTypefaces().Select(typeface => new FontChoice(family, typeface)))
                 .ToList();
+            fontChoicesView = new ListCollectionView(fontChoices);
+            ApplyFontSort();
+            OverlayFontFamilyBox.ItemsSource = fontChoicesView;
+            OverlayFontFamilyBox.ApplyTemplate();
+            fontSearchBox = OverlayFontFamilyBox.Template.FindName("PART_EditableTextBox", OverlayFontFamilyBox)
+                as System.Windows.Controls.TextBox;
+            if (fontSearchBox != null)
+                fontSearchBox.TextChanged += FontSearchBox_TextChanged;
+            SelectConfiguredFont();
+        }
+
+        private void ApplyFontSort()
+        {
+            if (fontChoicesView == null)
+                return;
+            fontChoicesView.CustomSort = new FontChoiceComparer(
+                Translator.Setting.OverlayWindow.RecentFontFaces);
+            fontChoicesView.Refresh();
         }
 
         private void SelectConfiguredFont()
@@ -156,12 +191,9 @@ namespace LiveCaptionsTranslator
 
         private void UiLanguageBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (UiLanguageBox.SelectedValue is string language)
+            if (!suppressLanguageChange && UiLanguageBox.SelectedValue is string language)
             {
                 LocalizationService.SetLanguage(language);
-                LoadFontChoices();
-                RefreshFontChoices();
-                SelectConfiguredFont();
                 try
                 {
                     bool isHidden = Translator.Window?.Current.BoundingRectangle == Rect.Empty;
@@ -297,6 +329,7 @@ namespace LiveCaptionsTranslator
             public FontFamily Family { get; }
             public Typeface Typeface { get; }
             public string DisplayName { get; }
+            public string SearchName => $"{Family.Source} {DisplayName}";
             public string Key => $"{Family.Source}|{Typeface.Weight.ToOpenTypeWeight()}|" +
                                  $"{Typeface.Stretch.ToOpenTypeStretch()}|{Typeface.Style}";
 
@@ -318,6 +351,31 @@ namespace LiveCaptionsTranslator
                 Typeface.Style.ToString() == style;
 
             public override string ToString() => DisplayName;
+        }
+
+        private sealed class FontChoiceComparer : IComparer
+        {
+            private readonly List<string> recent;
+
+            public FontChoiceComparer(List<string> recent)
+            {
+                this.recent = recent;
+            }
+
+            public int Compare(object? x, object? y)
+            {
+                if (x is not FontChoice left || y is not FontChoice right)
+                    return 0;
+                int leftIndex = recent.IndexOf(left.Key);
+                int rightIndex = recent.IndexOf(right.Key);
+                if (leftIndex < 0)
+                    leftIndex = int.MaxValue;
+                if (rightIndex < 0)
+                    rightIndex = int.MaxValue;
+                int recentComparison = leftIndex.CompareTo(rightIndex);
+                return recentComparison != 0 ? recentComparison :
+                    StringComparer.CurrentCultureIgnoreCase.Compare(left.DisplayName, right.DisplayName);
+            }
         }
     }
 }

@@ -78,10 +78,12 @@ namespace LiveCaptionsTranslator.models
         private string fontStyle = "Normal";
         private List<string> recentFontFaces = [];
         private Color fontColor = Color.White;
+        private string? fontColorHex;
         private FontBold fontBold = FontBold.None;
         private double fontStroke = 0.0;
 
         private Color backgroundColor = Color.Black;
+        private string? backgroundColorHex;
         private int opacity = 150;
         private double silenceClearDelay = 1.5;
 
@@ -148,6 +150,15 @@ namespace LiveCaptionsTranslator.models
                 OnPropertyChanged("FontColor");
             }
         }
+        public string FontColorHex
+        {
+            get => fontColorHex ?? LegacyColorToHex(fontColor);
+            set
+            {
+                fontColorHex = value;
+                OnPropertyChanged("FontColorHex");
+            }
+        }
         public FontBold FontBold
         {
             get => fontBold;
@@ -175,6 +186,15 @@ namespace LiveCaptionsTranslator.models
                 OnPropertyChanged("BackgroundColor");
             }
         }
+        public string BackgroundColorHex
+        {
+            get => backgroundColorHex ?? LegacyColorToHex(backgroundColor);
+            set
+            {
+                backgroundColorHex = value;
+                OnPropertyChanged("BackgroundColorHex");
+            }
+        }
         public int Opacity
         {
             get => opacity;
@@ -199,5 +219,18 @@ namespace LiveCaptionsTranslator.models
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
             Translator.Setting?.Save();
         }
+
+        private static string LegacyColorToHex(Color color) => color switch
+        {
+            Color.White => "#FFFFFF",
+            Color.Yellow => "#FFFF00",
+            Color.LimeGreen => "#32CD32",
+            Color.Aqua => "#00FFFF",
+            Color.Blue => "#0000FF",
+            Color.DeepPink => "#FF1493",
+            Color.Red => "#FF0000",
+            Color.Black => "#000000",
+            _ => "#FFFFFF"
+        };
     }
 }
