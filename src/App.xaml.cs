@@ -10,20 +10,13 @@ namespace LiveCaptionsTranslator
         {
             LocalizationService.Initialize(Translator.Setting?.UiLanguage ?? "zh-CN");
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
-            Translator.Setting?.Save();
-
-            Task.Run(() => Translator.SyncLoop());
-            Task.Run(() => Translator.TranslateLoop());
-            Task.Run(() => Translator.DisplayLoop());
+            Translator.Setting?.ScheduleSave();
+            Translator.Start();
         }
 
-        private static void OnProcessExit(object sender, EventArgs e)
+        private static void OnProcessExit(object? sender, EventArgs e)
         {
-            if (Translator.Window != null)
-            {
-                LiveCaptionsHandler.RestoreLiveCaptions(Translator.Window);
-                LiveCaptionsHandler.KillLiveCaptions(Translator.Window);
-            }
+            Translator.StopAsync().GetAwaiter().GetResult();
         }
     }
 }

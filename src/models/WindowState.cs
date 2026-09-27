@@ -63,7 +63,7 @@ namespace LiveCaptionsTranslator.models
         public void OnPropertyChanged([CallerMemberName] string propName = "")
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
-            Translator.Setting?.Save();
+            Translator.Setting?.ScheduleSave();
         }
     }
 
@@ -72,8 +72,8 @@ namespace LiveCaptionsTranslator.models
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private int fontSize = 15;
-        private string fontFamily = "Segoe UI";
-        private int fontWeight = 400;
+        private string fontFamily = "Noto Serif JP";
+        private int fontWeight = 500;
         private int fontStretch = 5;
         private string fontStyle = "Normal";
         private List<string> recentFontFaces = [];
@@ -86,6 +86,8 @@ namespace LiveCaptionsTranslator.models
         private string? backgroundColorHex;
         private int opacity = 150;
         private double silenceClearDelay = 1.5;
+        private CaptionVisible displayMode = CaptionVisible.Both;
+        private CaptionLocation captionLocation = CaptionLocation.TranslationTop;
 
         public int FontSize
         {
@@ -209,15 +211,33 @@ namespace LiveCaptionsTranslator.models
             get => silenceClearDelay;
             set
             {
-                silenceClearDelay = value;
+                silenceClearDelay = double.IsFinite(value) ? Math.Clamp(value, 0, 10) : 0;
                 OnPropertyChanged("SilenceClearDelay");
+            }
+        }
+        public CaptionVisible DisplayMode
+        {
+            get => displayMode;
+            set
+            {
+                displayMode = Enum.IsDefined(value) ? value : CaptionVisible.Both;
+                OnPropertyChanged();
+            }
+        }
+        public CaptionLocation CaptionLocation
+        {
+            get => captionLocation;
+            set
+            {
+                captionLocation = Enum.IsDefined(value) ? value : global::LiveCaptionsTranslator.Utils.CaptionLocation.TranslationTop;
+                OnPropertyChanged();
             }
         }
 
         public void OnPropertyChanged([CallerMemberName] string propName = "")
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
-            Translator.Setting?.Save();
+            Translator.Setting?.ScheduleSave();
         }
 
         private static string LegacyColorToHex(Color color) => color switch

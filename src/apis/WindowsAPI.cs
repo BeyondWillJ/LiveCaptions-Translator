@@ -12,6 +12,16 @@ namespace LiveCaptionsTranslator.apis
         public const int SW_MINIMIZE = 6;
         public const int SW_RESTORE = 9;
 
+        public const int SM_CXSCREEN = 0;
+        public const int SM_CYSCREEN = 1;
+        public const int SM_XVIRTUALSCREEN = 76;
+        public const int SM_YVIRTUALSCREEN = 77;
+        public const int SM_CXVIRTUALSCREEN = 78;
+        public const int SM_CYVIRTUALSCREEN = 79;
+
+        [DllImport("user32.dll")]
+        public static extern int GetSystemMetrics(int nIndex);
+
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool ShowWindow(nint hWnd, int nCmdShow);
 

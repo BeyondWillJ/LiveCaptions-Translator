@@ -62,6 +62,7 @@ BenchmarkDotNet.Artifacts/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+.build-cache/
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
@@ -362,4 +363,16 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
+PLANS/
+!PLANS/
+PLANS/*
+!PLANS/PLAN1_check.md
+
+# LiveCaptions Translator runtime data (legacy working-directory storage)
+setting.json
+setting.json.bak
+setting.json.corrupt-*
+translation_history.db
+translation_history.db-shm
+translation_history.db-wal
 .idea/

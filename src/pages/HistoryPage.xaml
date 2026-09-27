@@ -66,6 +66,22 @@
                     <ComboBoxItem Content="100/page" Tag="100" />
                 </ComboBox>
 
+                <ComboBox
+                    x:Name="HistoryStatusFilter"
+                    MinWidth="105"
+                    Margin="5,0,0,0"
+                    Padding="8,4,8,7"
+                    VerticalAlignment="Stretch"
+                    SelectedIndex="0">
+                    <ComboBoxItem Content="All statuses" Tag="All" />
+                    <ComboBoxItem Content="Pending" Tag="Pending" />
+                    <ComboBoxItem Content="Succeeded" Tag="Succeeded" />
+                    <ComboBoxItem Content="Failed" Tag="Failed" />
+                    <ComboBoxItem Content="Skipped" Tag="Skipped" />
+                    <ComboBoxItem Content="Source only" Tag="SourceOnly" />
+                    <ComboBoxItem Content="Interrupted" Tag="Interrupted" />
+                </ComboBox>
+
                 <ui:AutoSuggestBox
                     x:Name="HistorySearchBox"
                     MinWidth="200"
@@ -117,18 +133,17 @@
             </StackPanel>
         </Grid>
 
-        <DataGrid
-            x:Name="HistoryDataGrid"
-            Grid.Row="1"
-            Margin="0,5,20,0"
-            VerticalAlignment="Stretch"
-            AutoGenerateColumns="False"
-            BorderThickness="0,0,0,0"
-            EnableRowVirtualization="True"
-            GridLinesVisibility="Horizontal"
-            IsReadOnly="True"
-            VirtualizingPanel.IsVirtualizing="True"
-            VirtualizingPanel.VirtualizationMode="Recycling">
+        <Grid Grid.Row="1" Margin="0,5,20,0">
+            <DataGrid
+                x:Name="HistoryDataGrid"
+                VerticalAlignment="Stretch"
+                AutoGenerateColumns="False"
+                BorderThickness="0,0,0,0"
+                EnableRowVirtualization="True"
+                GridLinesVisibility="Horizontal"
+                IsReadOnly="True"
+                VirtualizingPanel.IsVirtualizing="True"
+                VirtualizingPanel.VirtualizationMode="Recycling">
             <DataGrid.VerticalGridLinesBrush>
                 <LinearGradientBrush MappingMode="Absolute" EndPoint="0,3">
                     <GradientStop Offset="0.33" Color="#18FFFFFF" />
@@ -148,7 +163,7 @@
                 </LinearGradientBrush>
             </DataGrid.BorderBrush>
             <DataGrid.Columns>
-                <DataGridTemplateColumn Width="0.4*" Header="Time">
+                <DataGridTemplateColumn Width="0.5*" Header="Time">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock
@@ -182,7 +197,29 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
+                <DataGridTemplateColumn Width="0.35*" Header="Status">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding LocalizedStatus}" TextWrapping="Wrap" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Width="0.8*" Header="Error reason">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding LocalizedErrorReason}" TextWrapping="Wrap" ToolTip="{Binding ErrorCode}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
-        </DataGrid>
+            </DataGrid>
+            <TextBlock
+                x:Name="HistoryStateText"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsHitTestVisible="False"
+                Text="Loading history..."
+                Visibility="Collapsed" />
+        </Grid>
     </Grid>
 </Page>

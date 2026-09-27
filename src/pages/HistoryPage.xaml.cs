@@ -19,6 +19,7 @@ namespace LiveCaptionsTranslator
         private int searchPage = 1;
         private int maxPage = 1;
         private int maxRowPerPage = 30;
+        private readonly RequestGeneration historyLoad = new();
 
         public string SearchText { get; set; } = string.Empty;
 
@@ -32,11 +33,14 @@ namespace LiveCaptionsTranslator
                 await LoadHistory();
                 (App.Current.MainWindow as MainWindow)?.AutoHeightAdjust(minHeight: MIN_HEIGHT, maxHeight: MIN_HEIGHT);
                 Translator.TranslationLogged += OnTranslationLogged;
+                HistoryStatusFilter.SelectionChanged += HistoryStatusFilter_SelectionChanged;
             };
             Unloaded += (s, e) =>
             {
                 HistoryDataGrid.ItemsSource = null;
                 Translator.TranslationLogged -= OnTranslationLogged;
+                HistoryStatusFilter.SelectionChanged -= HistoryStatusFilter_SelectionChanged;
+                historyLoad.CancelCurrent();
             };
 
             HistoryMaxRow.SelectionChanged += maxRow_SelectionChanged;
@@ -64,6 +68,8 @@ namespace LiveCaptionsTranslator
         private async void Delete_click(object sender, RoutedEventArgs e)
         {
             var dialogHostContainer = (Application.Current.MainWindow as MainWindow)?.DialogHostContainer;
+            if (dialogHostContainer is null)
+                return;
 
             var dialog = new ContentDialog
             {
@@ -95,16 +101,17 @@ namespace LiveCaptionsTranslator
 
         private async void maxRow_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            string tag = (e.AddedItems[0] as ComboBoxItem).Tag as string;
+            if (e.AddedItems.Count == 0 || e.AddedItems[0] is not ComboBoxItem item || item.Tag is not string tag)
+                return;
             maxRowPerPage = Convert.ToInt32(tag);
-
+            currentPage = 1;
             await LoadHistory();
+        }
 
-            if (currentPage > maxPage)
-            {
-                currentPage = maxPage;
-                await LoadHistory();
-            }
+        private async void HistoryStatusFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            currentPage = 1;
+            await LoadHistory();
         }
 
         private async void Refresh_click(object sender, RoutedEventArgs e)
@@ -154,7 +161,7 @@ namespace LiveCaptionsTranslator
                 {
                     searchPage = currentPage;
                 }
-                SearchText = (sender as AutoSuggestBox)?.Text;
+                SearchText = searchText;
                 currentPage = 1;
             }
             await LoadHistory();
@@ -176,16 +183,50 @@ namespace LiveCaptionsTranslator
 
         public async Task LoadHistory()
         {
-            var data = await SQLiteHistoryLogger.LoadHistoryAsync(currentPage, maxRowPerPage, SearchText);
-            List<TranslationHistoryEntry> history = data.Item1;
+            RequestLease request = historyLoad.Begin();
 
-            maxPage = (data.Item2 > 0) ? data.Item2 : 1;
+            HistoryStateText.Text = LocalizationService.Get("Loading history...");
+            HistoryStateText.Visibility = Visibility.Visible;
 
-            await Dispatcher.InvokeAsync(() =>
+            try
             {
-                HistoryDataGrid.ItemsSource = history;
-                PageNumber.Text = currentPage.ToString() + "/" + maxPage.ToString();
-            });
+                int requestedPage = currentPage;
+                var data = await SQLiteHistoryLogger.LoadHistoryPageAsync(
+                    requestedPage, maxRowPerPage, SearchText, SelectedStatusFilter(), request.Token);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (!historyLoad.IsCurrent(request))
+                        return;
+                    maxPage = data.MaxPage;
+                    currentPage = data.ActualPage;
+                    HistoryDataGrid.ItemsSource = data.Rows;
+                    PageNumber.Text = $"{currentPage}/{maxPage}";
+                    HistoryStateText.Text = data.Rows.Count == 0
+                        ? LocalizationService.Get("No history found.") : string.Empty;
+                    HistoryStateText.Visibility = data.Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+                });
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Unable to load translation history: {ex.GetType().Name}");
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (!historyLoad.IsCurrent(request))
+                        return;
+                    HistoryDataGrid.ItemsSource = null;
+                    HistoryStateText.Text = LocalizationService.Get("Unable to load history.");
+                    HistoryStateText.Visibility = Visibility.Visible;
+                });
+            }
+        }
+
+        private string SelectedStatusFilter()
+        {
+            string? status = (HistoryStatusFilter.SelectedItem as ComboBoxItem)?.Tag as string;
+            return string.IsNullOrEmpty(status) || status == "All" ? string.Empty : status;
         }
     }
 }

@@ -15,7 +15,7 @@ namespace LiveCaptionsTranslator.utils
             setting.WindowBounds[windowName] = Regex.Replace(
                 window.RestoreBounds.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 @"(\d+\.\d{1})\d+", "$1");
-            setting.Save();
+            setting.ScheduleSave();
             return window.RestoreBounds;
         }
 
@@ -24,8 +24,35 @@ namespace LiveCaptionsTranslator.utils
             if (window == null || setting == null)
                 return Rect.Empty;
             string windowName = window.GetType().Name;
-            Rect bound = Rect.Parse(setting.WindowBounds[windowName]);
-            return bound;
+            if (!setting.WindowBounds.TryGetValue(windowName, out string? serialized))
+                return Rect.Empty;
+            try
+            {
+                Rect bound = Rect.Parse(serialized);
+                if (bound.IsEmpty || !double.IsFinite(bound.Left) || !double.IsFinite(bound.Top) ||
+                    bound.Width < window.MinWidth || bound.Height < window.MinHeight)
+                    return Rect.Empty;
+                return bound;
+            }
+            catch (FormatException)
+            {
+                return Rect.Empty;
+            }
+        }
+
+        public static bool IsVisibleOnVirtualDesktop(Rect bounds)
+        {
+            var virtualDesktop = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+                SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+            return IsVisibleOnVirtualDesktop(bounds, virtualDesktop);
+        }
+
+        internal static bool IsVisibleOnVirtualDesktop(Rect bounds, Rect virtualDesktop)
+        {
+            if (bounds.IsEmpty || virtualDesktop.IsEmpty)
+                return false;
+            Rect visibleArea = Rect.Intersect(bounds, virtualDesktop);
+            return !visibleArea.IsEmpty && visibleArea.Width >= 80 && visibleArea.Height >= 40;
         }
 
         public static void RestoreState(Window? window, Rect bound)

@@ -1,11 +1,14 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text;
 using System.Windows;
 
 using LiveCaptionsTranslator.apis;
+using LiveCaptionsTranslator.utils;
 
 namespace LiveCaptionsTranslator.models
 {
@@ -20,7 +23,14 @@ namespace LiveCaptionsTranslator.models
         private int numContexts = 2;
         private int displaySentences = 1;
         private bool contextAware = false;
-        private string uiLanguage = "zh-CN";
+        private string uiLanguage = GetDefaultUiLanguage();
+
+        [JsonIgnore]
+        private readonly object saveLock = new();
+        [JsonIgnore]
+        private Timer? saveTimer;
+        [JsonIgnore]
+        private string? pendingSerializedSettings;
 
         private string apiName;
         private string targetLanguage;
@@ -40,7 +50,7 @@ namespace LiveCaptionsTranslator.models
             get => maxSyncInterval;
             set
             {
-                maxSyncInterval = value;
+                maxSyncInterval = Math.Clamp(value, 1, 10);
                 OnPropertyChanged("MaxSyncInterval");
             }
         }
@@ -49,7 +59,7 @@ namespace LiveCaptionsTranslator.models
             get => numContexts;
             set
             {
-                numContexts = value;
+                numContexts = Math.Clamp(value, 0, 10);
                 OnPropertyChanged("NumContexts");
             }
         }
@@ -58,7 +68,7 @@ namespace LiveCaptionsTranslator.models
             get => displaySentences;
             set
             {
-                displaySentences = value;
+                displaySentences = Math.Clamp(value, 0, 10);
                 OnPropertyChanged("DisplaySentences");
             }
         }
@@ -166,10 +176,18 @@ namespace LiveCaptionsTranslator.models
             }
         }
 
-        public TranslateAPIConfig this[string key] =>
-            configs.ContainsKey(key) && configIndices.ContainsKey(key)
-                ? configs[key][configIndices[key]]
-                : new TranslateAPIConfig();
+        public TranslateAPIConfig this[string key]
+        {
+            get
+            {
+                if (!configs.TryGetValue(key, out var values) || values.Count == 0)
+                    return new TranslateAPIConfig();
+                int index = configIndices.TryGetValue(key, out int configuredIndex)
+                    ? Math.Clamp(configuredIndex, 0, values.Count - 1)
+                    : 0;
+                return values[index];
+            }
+        }
 
         public Setting()
         {
@@ -203,7 +221,6 @@ namespace LiveCaptionsTranslator.models
             configs = new Dictionary<string, List<TranslateAPIConfig>>
             {
                 { "Google", [new TranslateAPIConfig()] },
-                { "Google2", [new TranslateAPIConfig()] },
                 { "Ollama", [new OllamaConfig()] },
                 { "OpenAI", [new OpenAIConfig()] },
                 { "LMStudio", [new LMStudioConfig()] },
@@ -217,7 +234,6 @@ namespace LiveCaptionsTranslator.models
             configIndices = new Dictionary<string, int>
             {
                 { "Google", 0 },
-                { "Google2", 0 },
                 { "Ollama", 0 },
                 { "OpenAI", 0 },
                 { "LMStudio", 0 },
@@ -232,16 +248,54 @@ namespace LiveCaptionsTranslator.models
 
         public static Setting Load()
         {
-            string jsonPath = Path.Combine(Directory.GetCurrentDirectory(), FILENAME);
+            string currentPath = AppPaths.SettingFile;
+            string legacyPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), FILENAME));
+            return LoadMigrating(currentPath, legacyPath);
+        }
+
+        internal static Setting LoadMigrating(string currentPath, string legacyPath)
+        {
+            SecretProtector.ResetLoadStatus();
+            currentPath = Path.GetFullPath(currentPath);
+            legacyPath = Path.GetFullPath(legacyPath);
+            string loadPath = File.Exists(currentPath) || !File.Exists(legacyPath) ? currentPath : legacyPath;
+            bool loadedValidSettings = TryLoadOrDefault(loadPath, out Setting setting);
+            if (loadedValidSettings)
+            {
+                try
+                {
+                    // Normalize both current settings and migrated legacy settings into the
+                    // verified encrypted format before cleaning any known legacy source.
+                    setting.Save(currentPath);
+                    CleanupLegacyPlaintextFiles(currentPath, legacyPath);
+                }
+                catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException or System.ComponentModel.Win32Exception)
+                {
+                    SecretProtector.SetPersistenceWarning(currentPath);
+                }
+            }
+            else
+                SecretProtector.SetPersistenceWarning(currentPath);
+            return setting;
+        }
+
+        internal static Setting LoadOrDefault(string jsonPath)
+        {
+            TryLoadOrDefault(jsonPath, out Setting setting);
+            return setting;
+        }
+
+        private static bool TryLoadOrDefault(string jsonPath, out Setting setting)
+        {
             try
             {
-                return Load(jsonPath);
+                setting = Load(jsonPath);
+                return true;
             }
-            catch (JsonException)
+            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
             {
-                string backupPath = jsonPath + ".bak";
-                File.Move(jsonPath, backupPath);
-                return Load(jsonPath);
+                setting = new Setting();
+                return false;
             }
         }
 
@@ -268,53 +322,247 @@ namespace LiveCaptionsTranslator.models
             // Ensure all required API configs are present
             foreach (string key in TranslateAPI.TRANSLATE_FUNCTIONS.Keys)
             {
-                if (setting.Configs.ContainsKey(key))
-                    continue;
                 var configType = Type.GetType($"LiveCaptionsTranslator.models.{key}Config");
-                if (configType != null && typeof(TranslateAPIConfig).IsAssignableFrom(configType))
-                    setting.Configs[key] = [(TranslateAPIConfig)Activator.CreateInstance(configType)];
-                else
-                    setting.Configs[key] = [new TranslateAPIConfig()];
+                if (!setting.Configs.TryGetValue(key, out var values) || values.Count == 0)
+                {
+                    if (configType != null && typeof(TranslateAPIConfig).IsAssignableFrom(configType))
+                        setting.Configs[key] = [(TranslateAPIConfig)Activator.CreateInstance(configType)!];
+                    else
+                        setting.Configs[key] = [new TranslateAPIConfig()];
+                }
             }
 
             // Ensure ConfigIndices has all keys (for upgrades from older setting.json)
             foreach (string key in TranslateAPI.TRANSLATE_FUNCTIONS.Keys)
             {
-                if (!setting.ConfigIndices.ContainsKey(key))
-                    setting.ConfigIndices[key] = 0;
+                setting.ConfigIndices[key] = setting.ConfigIndices.TryGetValue(key, out int index)
+                    ? Math.Clamp(index, 0, setting.Configs[key].Count - 1)
+                    : 0;
             }
+
+            if (!TranslateAPI.TRANSLATE_FUNCTIONS.ContainsKey(setting.ApiName))
+                setting.ApiName = "Google";
 
             return setting;
         }
 
         public void Save()
         {
-            Save(FILENAME);
+            Save(AppPaths.SettingFile);
         }
 
         public void Save(string jsonPath)
         {
-            using (FileStream fileStream = File.Open(jsonPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+            string snapshot = CaptureSerializedSettings();
+            lock (saveLock)
             {
-                var options = new JsonSerializerOptions
+                saveTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+                pendingSerializedSettings = null;
+                WriteSnapshot(jsonPath, snapshot);
+            }
+        }
+
+        public void ScheduleSave()
+        {
+            // Model changes originate on the UI thread. Capture the immutable JSON there;
+            // the timer thread only writes this snapshot and never reads mutable WPF-bound state.
+            string snapshot = CaptureSerializedSettings();
+            lock (saveLock)
+            {
+                pendingSerializedSettings = snapshot;
+                saveTimer ??= new Timer(_ =>
                 {
-                    WriteIndented = true,
-                    Converters = { new ConfigDictConverter() }
-                };
-                JsonSerializer.Serialize(fileStream, this, options);
+                    string? pending;
+                    lock (saveLock)
+                    {
+                        pending = pendingSerializedSettings;
+                        pendingSerializedSettings = null;
+                    }
+                    if (pending is null)
+                        return;
+                    try
+                    {
+                        lock (saveLock)
+                            WriteSnapshot(AppPaths.SettingFile, pending);
+                    }
+                    catch
+                    {
+                        SecretProtector.SetPersistenceWarning(AppPaths.SettingFile);
+                        // A later change or the application-exit flush will retry the save.
+                    }
+                });
+                saveTimer.Change(TimeSpan.FromMilliseconds(500), Timeout.InfiniteTimeSpan);
+            }
+        }
+
+        public void FlushPendingSave()
+        {
+            string? snapshot;
+            lock (saveLock)
+            {
+                saveTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+                snapshot = pendingSerializedSettings;
+                pendingSerializedSettings = null;
+                if (snapshot != null)
+                {
+                    try { WriteSnapshot(AppPaths.SettingFile, snapshot); }
+                    catch
+                    {
+                        SecretProtector.SetPersistenceWarning(AppPaths.SettingFile);
+                        throw;
+                    }
+                }
+            }
+        }
+
+        private string CaptureSerializedSettings()
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+                return dispatcher.Invoke(SerializeSettings);
+            return SerializeSettings();
+        }
+
+        private string SerializeSettings()
+        {
+            var options = CreateJsonOptions();
+            string json = JsonSerializer.Serialize(this, options);
+            VerifyEncryptedSecrets(json, this);
+            return json;
+        }
+
+        private void WriteSnapshot(string jsonPath, string snapshot)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(jsonPath))!);
+            string tempPath = jsonPath + ".tmp";
+            string backupTempPath = jsonPath + ".bak.tmp";
+            string backupPath = jsonPath + ".bak";
+            WriteFlushed(tempPath, snapshot);
+            string reread = File.ReadAllText(tempPath, Encoding.UTF8);
+            VerifyEncryptedSecrets(reread, null);
+            WriteFlushed(backupTempPath, reread);
+            File.Move(backupTempPath, backupPath, overwrite: true);
+            File.Move(tempPath, jsonPath, overwrite: true);
+            SecretProtector.ClearPersistenceWarning();
+        }
+
+        private static void WriteFlushed(string path, string content)
+        {
+            using var stream = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            using var writer = new StreamWriter(stream, new UTF8Encoding(false));
+            writer.Write(content);
+            writer.Flush();
+            stream.Flush(flushToDisk: true);
+        }
+
+        private static void VerifyEncryptedSecrets(string json, Setting? expected)
+        {
+            using JsonDocument document = JsonDocument.Parse(json);
+            JsonElement configsElement = document.RootElement.GetProperty(nameof(Configs));
+            foreach (var configGroup in configsElement.EnumerateObject())
+            {
+                if (expected != null && !expected.Configs.TryGetValue(configGroup.Name, out _))
+                    throw new JsonException("A serialized API configuration is missing from the in-memory settings.");
+                int index = 0;
+                foreach (JsonElement serializedConfig in configGroup.Value.EnumerateArray())
+                {
+                    if (expected != null && (!expected.Configs.TryGetValue(configGroup.Name, out List<TranslateAPIConfig>? configs) || index >= configs.Count))
+                        throw new JsonException("A serialized API configuration count does not match the settings.");
+                    foreach (string propertyName in new[] { "ApiKey", "AppSecret" })
+                    {
+                        if (!serializedConfig.TryGetProperty(propertyName, out JsonElement value) || value.ValueKind != JsonValueKind.String)
+                            continue;
+                        string serialized = value.GetString() ?? string.Empty;
+                        string? actual = expected == null
+                            ? null
+                            : ReadSecret(expected.Configs[configGroup.Name][index], propertyName);
+                        if (serialized.Length == 0)
+                        {
+                            if (actual is { Length: > 0 })
+                                throw new JsonException("A non-empty API secret was serialized as blank.");
+                            continue;
+                        }
+                        if (actual == string.Empty)
+                        {
+                            if (serialized.Length != 0)
+                                throw new JsonException("A blank API secret was serialized with unexpected content.");
+                            continue;
+                        }
+                        if (!serialized.StartsWith("dpapi:v1:", StringComparison.Ordinal))
+                            throw new JsonException("A settings snapshot contains an unprotected API secret.");
+                        string clear = SecretProtector.Unprotect(serialized);
+                        if (clear.Length == 0 || actual != null && !string.Equals(clear, actual, StringComparison.Ordinal))
+                            throw new JsonException("A protected API secret could not be verified after writing.");
+                    }
+                    index++;
+                }
+                if (expected != null && index != expected.Configs[configGroup.Name].Count)
+                    throw new JsonException("A serialized API configuration count does not match the settings.");
+            }
+        }
+
+        private static string ReadSecret(TranslateAPIConfig config, string name)
+        {
+            object? propertyValue = config.GetType().GetProperty(name)?.GetValue(config);
+            if (propertyValue is string value)
+                return value;
+            return config.AdditionalData.TryGetValue(name, out JsonElement additional) &&
+                   additional.ValueKind == JsonValueKind.String
+                ? additional.GetString() ?? string.Empty
+                : string.Empty;
+        }
+
+        private static JsonSerializerOptions CreateJsonOptions() => new()
+        {
+            WriteIndented = true,
+            Converters = { new ConfigDictConverter() }
+        };
+
+        private static void CleanupLegacyPlaintextFiles(string currentPath, string legacyPath)
+        {
+            string current = Path.GetFullPath(currentPath);
+            string legacy = Path.GetFullPath(legacyPath);
+            if (current.Equals(legacy, StringComparison.OrdinalIgnoreCase))
+                return;
+            foreach (string path in new[] { legacy, legacy + ".bak", legacy + ".tmp" })
+            {
+                try
+                {
+                    if (File.Exists(path))
+                        File.Delete(path);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    SecretProtector.SetCleanupWarning(path);
+                }
             }
         }
 
         public void OnPropertyChanged([CallerMemberName] string? propName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
-            Translator.Setting?.Save();
+            Translator.Setting?.ScheduleSave();
         }
 
         public static bool IsConfigExist()
         {
-            string jsonPath = Path.Combine(Directory.GetCurrentDirectory(), FILENAME);
-            return File.Exists(jsonPath);
+            return File.Exists(AppPaths.SettingFile) ||
+                   File.Exists(Path.Combine(Directory.GetCurrentDirectory(), FILENAME));
+        }
+
+        private static string GetDefaultUiLanguage()
+        {
+            string name = CultureInfo.InstalledUICulture.Name;
+            if (name.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+                return "ja-JP";
+            if (name.Equals("zh-TW", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("zh-HK", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("zh-MO", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("Hant", StringComparison.OrdinalIgnoreCase))
+                return "zh-TW";
+            if (name.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
+                return "zh-CN";
+            return "en-US";
         }
     }
 }

@@ -21,9 +21,11 @@ namespace LiveCaptionsTranslator.utils
             };
         private static readonly ConditionalWeakTable<DependencyObject, Dictionary<string, string>> Originals = new();
         private static readonly Dictionary<string, string> CanonicalSources = new(StringComparer.Ordinal);
+        private static readonly HashSet<string> KnownSources = new(StringComparer.Ordinal);
         private static bool initialized;
 
         public static string CurrentLanguage { get; private set; } = "zh-CN";
+        public static event Action<string>? LanguageChanged;
 
         static LocalizationService()
         {
@@ -50,7 +52,11 @@ namespace LiveCaptionsTranslator.utils
             Add("LiveCaptions", "实时字幕", "ライブ キャプション", "即時字幕");
             Add("Show", "显示", "表示", "顯示");
             Add("Hide", "隐藏", "非表示", "隱藏");
-            Add("API Interval", "API 调用间隔", "API 呼び出し間隔", "API 呼叫間隔");
+            Add("Clear after no caption updates (s)", "字幕停止变化后清屏（秒）", "字幕が変化しなくなってから消去（秒）", "字幕停止變化後清除（秒）");
+            Add("Clear the overlay after captions stop changing for this duration. 0 disables automatic clearing.", "字幕在这段时间内没有变化后清空悬浮窗。设为 0 可禁用自动清屏。", "字幕がこの時間変化しなければオーバーレイを消去します。0 で自動消去を無効にします。", "字幕在這段時間內沒有變化後清空懸浮窗。設為 0 可停用自動清屏。");
+            Add("Translate every N caption changes", "每 N 次字幕变化尝试翻译", "字幕が N 回変化するごとに翻訳", "每 N 次字幕變化嘗試翻譯");
+            Add("Attempts translation for draft captions once every N changes. Final sentences are always translated.", "草稿字幕每变化 N 次尝试翻译一次；最终句始终会翻译。", "字幕の草稿は N 回変化するごとに翻訳を試みます。確定した文は必ず翻訳します。", "草稿字幕每變化 N 次嘗試翻譯一次；最終句一律會翻譯。");
+            Add("Display count is independent of context count.", "展示句数与上下文句数互相独立。", "表示する文数と文脈数は別々に設定できます。", "顯示句數與上下文句數互相獨立。");
             Add("Translate API", "翻译 API", "翻訳 API", "翻譯 API");
             Add("Target Language", "目标语言", "翻訳先言語", "目標語言");
             Add("API Setting", "API 设置", "API 設定", "API 設定");
@@ -62,17 +68,11 @@ namespace LiveCaptionsTranslator.utils
             Add("Display Sentences", "Overlay 显示句数", "オーバーレイ表示文数", "Overlay 顯示句數");
             Add("Context Aware", "上下文感知", "文脈を考慮", "上下文感知");
             Add("Overlay Font", "悬浮字幕字体", "オーバーレイのフォント", "懸浮字幕字體");
-            Add("Clear After Silence (s)", "静默后清屏（秒）", "無音後に消去（秒）", "靜默後清屏（秒）");
-            Add("0 disables automatic Overlay clearing", "设为 0 可关闭悬浮字幕自动清屏", "0 にすると自動消去を無効化します", "設為 0 可關閉懸浮字幕自動清屏");
             Add("UI Language", "界面语言", "表示言語", "介面語言");
-            Add("Except for Google and Google2, all other APIs require configuring before they can be used.",
-                "除 Google 和 Google2 外，其他 API 均需配置后才能使用。",
-                "Google と Google2 以外の API は、使用前に設定が必要です。",
-                "除 Google 和 Google2 外，其他 API 均需設定後才能使用。");
-            Add("Determines the frequency of translate API calls. The smaller it is, the more frequent API calls.",
-                "控制翻译 API 的调用频率，数值越小调用越频繁。",
-                "翻訳 API の呼び出し頻度です。小さいほど頻繁に呼び出します。",
-                "控制翻譯 API 的呼叫頻率，數值越小呼叫越頻繁。");
+            Add("Except for Google, all other APIs require configuring before they can be used.",
+                "除 Google 外，其他 API 均需配置后才能使用。",
+                "Google 以外の API は、使用前に設定が必要です。",
+                "除 Google 外，其他 API 均需設定後才能使用。");
             Add("Translate in context.", "结合上下文翻译。", "文脈を考慮して翻訳します。", "結合上下文翻譯。");
             Add("\nIt can improve translation accuracy, but will consume more tokens.",
                 "\n可提高翻译准确度，但会消耗更多 Token。",
@@ -136,9 +136,6 @@ namespace LiveCaptionsTranslator.utils
             Add("Please click", "请点击", "次をクリックしてください：", "請點擊");
             Add("\"Hide\"", "“隐藏”", "「非表示」", "「隱藏」");
             Add("to hide LiveCaptions instead of closing it directly.", "来隐藏实时字幕，请勿直接关闭。", "ライブ キャプションを直接閉じずに非表示にします。", "來隱藏即時字幕，請勿直接關閉。");
-            Add("\nThe translate API is called once after the caption changes", "\n字幕内容发生变化后，每经过", "\n字幕が変化してから", "\n字幕內容發生變化後，每經過");
-            Add("[API Interval]", "[API 调用间隔]", "[API 呼び出し間隔]", "[API 呼叫間隔]");
-            Add("times.", "次变化调用一次翻译 API。", "回の変化ごとに翻訳 API を呼び出します。", "次變化呼叫一次翻譯 API。");
             Add("\"There isn’t the target language I expect!\"", "“没有我需要的目标语言！”", "「希望する翻訳先言語がない！」", "「沒有我需要的目標語言！」");
             Add("\nYou can directly edit the content of this combobox to customize the language, and it is recommended to follow the", "\n可以直接编辑此下拉框自定义语言，建议遵循", "\nこのコンボボックスを直接編集して言語を指定できます。次の形式を推奨します：", "\n可以直接編輯此下拉框自訂語言，建議遵循");
             Add("BCP 47 language tag.", "BCP 47 语言标签。", "BCP 47 言語タグ。", "BCP 47 語言標籤。");
@@ -151,15 +148,12 @@ namespace LiveCaptionsTranslator.utils
             Add("Determines the number of displayed cards when", "设置启用", "次の機能を有効にしたときのカード表示数：", "設定啟用");
             Add("Log Cards", "记录卡片", "ログカード", "記錄卡片");
             Add("is enabled, as well as the max number of sentences displayed in the Overlay Window.", "时的卡片数量，也是 Overlay 最多显示的句数。", "。オーバーレイに表示する最大文数にも使用します。", "時的卡片數量，也是 Overlay 最多顯示的句數。");
-            Add("Contexts must be", "上下文数量必须", "コンテキスト数は表示文数", "上下文數量必須");
-            Add("greater than or equal", "大于或等于", "以上にしてください。", "大於或等於");
-            Add("Display Sentences. If not met, the program will automatically adjust them.", "显示句数，否则程序会自动调整。", "条件を満たさない場合は自動調整されます。", "顯示句數，否則程式會自動調整。");
             Add("The {0} in the prompt indicates the target language, so make sure your prompt includes {0}.", "提示词中的 {0} 表示目标语言，请确保提示词包含 {0}。", "プロンプト内の {0} は翻訳先言語を表すため、必ず {0} を含めてください。", "提示詞中的 {0} 表示目標語言，請確保提示詞包含 {0}。");
             Add("The source text is enclosed with 🔤.", "源文本会由 🔤 包围。", "原文は 🔤 で囲まれます。", "來源文字會由 🔤 包圍。");
             Add("Base URL ending with", "基础 URL 结尾为", "末尾が次のベース URL：", "基礎 URL 結尾為");
             Add("Use Full Url (typically ending with", "使用完整 URL（通常结尾为", "完全な URL を使用（通常の末尾：", "使用完整 URL（通常結尾為");
             Add(". Chat endpoint and models are appended automatically.", "。聊天端点和模型路径会自动追加。", "。チャットのエンドポイントとモデルは自動追加されます。", "。聊天端點和模型路徑會自動加入。");
-            Add("\nIf this program is helpful to you, please consider giving us a star ✨!", "\n如果本程序对你有帮助，欢迎点亮 Star ✨！", "\n役に立った場合は、ぜひ Star ✨ をお願いします！", "\n如果本程式對你有幫助，歡迎點亮 Star ✨！");
+            Add("\nIf this program is helpful to you, please consider giving us a star!", "\n如果本程序对你有帮助，欢迎点亮 Star！", "\n役に立った場合は、ぜひ Star をお願いします！", "\n如果本程式對你有幫助，歡迎點亮 Star！");
             Add("(Author) and", "（作者）以及", "（作者）と", "（作者）以及");
             Add("\n2. Click the", "\n2. 点击 Windows 实时字幕中的", "\n2. Windows ライブ キャプションの", "\n2. 點擊 Windows 即時字幕中的");
             Add("icon in Windows LiveCaptions to open the settings menu, and select", "图标打开设置菜单，然后选择", "アイコンをクリックして設定メニューを開き、次を選択します：", "圖示開啟設定選單，然後選擇");
@@ -195,12 +189,54 @@ namespace LiveCaptionsTranslator.utils
             Add("Loaded {0} model(s).", "已加载 {0} 个模型。", "{0} 個のモデルを読み込みました。", "已載入 {0} 個模型。");
             Add("No models found or unable to connect. Check that the server is running.", "未找到模型或无法连接，请确认服务器正在运行。", "モデルが見つからないか接続できません。サーバーが起動していることを確認してください。", "未找到模型或無法連線，請確認伺服器正在執行。");
             Add("Copied.", "已复制。", "コピーしました。", "已複製。");
+            Add("Search font or style", "搜索字体或字形", "フォントまたはスタイルを検索", "搜尋字型或樣式");
+            Add("Loading fonts...", "正在加载字体……", "フォントを読み込んでいます…", "正在載入字型……");
+            Add("Font style", "字形样式", "フォントスタイル", "字型樣式");
             Add("Copy Failed.", "复制失败。", "コピーに失敗しました。", "複製失敗。");
+            Add("All statuses", "全部状态", "すべての状態", "所有狀態");
+            Add("Source only", "仅原文", "原文のみ", "僅原文");
+            Add("Status", "状态", "状態", "狀態");
+            Add("Error reason", "错误原因", "エラー理由", "錯誤原因");
+            Add("Loading history...", "正在加载历史记录……", "履歴を読み込んでいます…", "正在載入歷史記錄……");
+            Add("No history found.", "没有符合条件的历史记录。", "該当する履歴はありません。", "沒有符合條件的歷史記錄。");
+            Add("Unable to load history.", "无法读取历史记录。", "履歴を読み込めません。", "無法讀取歷史記錄。");
+            Add("Pending", "等待翻译", "翻訳待ち", "等待翻譯");
+            Add("Succeeded", "已完成", "成功", "已完成");
+            Add("Failed", "失败", "失敗", "失敗");
+            Add("Skipped", "已跳过", "スキップ", "已略過");
+            Add("SourceOnly", "仅保存原文", "原文のみ保存", "僅儲存原文");
+            Add("Interrupted", "中断", "中断", "中斷");
+            Add("Request timed out.", "翻译请求超时。", "翻訳リクエストがタイムアウトしました。", "翻譯請求逾時。");
+            Add("The translation service could not be reached.", "无法连接翻译服务。", "翻訳サービスに接続できません。", "無法連線翻譯服務。");
+            Add("The translation service returned an unsuccessful response.", "翻译服务返回了失败响应。", "翻訳サービスが失敗応答を返しました。", "翻譯服務傳回失敗回應。");
+            Add("The translation service returned an unsupported response.", "翻译服务返回了无法识别的响应。", "翻訳サービスが認識できない応答を返しました。", "翻譯服務傳回無法識別的回應。");
+            Add("The translation response exceeded the allowed size.", "翻译响应超过大小限制。", "翻訳応答がサイズ上限を超えました。", "翻譯回應超過大小限制。");
+            Add("The translation request exceeded the 8 second time limit.", "翻译请求超过 8 秒时限。", "翻訳リクエストが 8 秒の制限時間を超えました。", "翻譯請求超過 8 秒時限。");
+            Add("Skipped because the translation queue was full.", "翻译队列已满，已跳过此句。", "翻訳キューがいっぱいのため、この文をスキップしました。", "翻譯佇列已滿，已略過此句。");
+            Add("Skipped because the request waited too long.", "请求等待过久，已跳过此句。", "リクエストの待ち時間が長すぎるため、この文をスキップしました。", "請求等待過久，已略過此句。");
+            Add("Skipped because a newer caption was waiting.", "有更新字幕等待处理，已跳过此句。", "新しい字幕が待機していたため、この文をスキップしました。", "有較新字幕等待處理，已略過此句。");
+            Add("Translation was paused.", "翻译已暂停。", "翻訳は一時停止中です。", "翻譯已暫停。");
+            Add("The previous translation request failed.", "上一版本中的翻译请求失败。", "前回の翻訳リクエストが失敗しました。", "上一版本中的翻譯請求失敗。");
+            Add("Connecting to system captions", "正在连接系统字幕", "システム字幕に接続しています", "正在連線系統字幕");
+            Add("Waiting for captions", "等待字幕", "字幕を待っています", "等待字幕");
+            Add("Translating", "正在翻译", "翻訳中", "正在翻譯");
+            Add("Waiting for next caption change", "等待下一次字幕变化", "次の字幕変化を待っています", "等待下一次字幕變化");
+            Add("Paused", "已暂停", "一時停止中", "已暫停");
+            Add("Service failure", "翻译服务异常", "翻訳サービスに問題があります", "翻譯服務異常");
+            Add("History write failure", "历史记录写入失败", "履歴を保存できません", "歷史記錄寫入失敗");
+            Add("Ready", "就绪", "準備完了", "就緒");
+            Add("Caption text is sent to the selected service when translation is enabled.", "启用翻译后，字幕文本会发送到所选服务。", "翻訳を有効にすると、字幕テキストが選択したサービスに送信されます。", "啟用翻譯後，字幕文字會傳送至所選服務。");
+            Add("Restore overlay interaction", "恢复悬浮窗交互", "オーバーレイ操作を復元", "恢復懸浮窗互動");
+            Add("Details", "详情", "詳細", "詳細資料");
+            Add("API keys are protected for the current Windows user; re-enter them on another device.", "API 密钥由当前 Windows 用户保护；更换设备后需要重新填写。", "API キーは現在の Windows ユーザー用に保護されます。別のデバイスでは再入力してください。", "API 金鑰由目前 Windows 使用者保護；更換裝置後需要重新輸入。");
+            Add("Saved API keys could not be decrypted. Enter them again.", "已保存的 API 密钥无法解密，请重新填写。", "保存済み API キーを復号できませんでした。再入力してください。", "已儲存的 API 金鑰無法解密，請重新輸入。");
+            Add("Remove the old plaintext file:", "请删除旧明文文件：", "古い平文ファイルを削除してください：", "請刪除舊明文檔案：");
+            Add("Settings could not be saved securely:", "无法安全保存设置：", "設定を安全に保存できませんでした：", "無法安全儲存設定：");
             Add("[Paused]", "[已暂停]", "[一時停止]", "[已暫停]");
             Add("[WARNING] LiveCaptions was unexpectedly closed, restarting...", "[警告] 实时字幕意外关闭，正在重新启动……", "[警告] ライブ キャプションが予期せず終了しました。再起動しています…", "[警告] 即時字幕意外關閉，正在重新啟動……");
             Add("[ERROR] Logging history failed.", "[错误] 写入历史记录失败。", "[エラー] 履歴の記録に失敗しました。", "[錯誤] 寫入歷史記錄失敗。");
             Add(") instead of Base Url (typically ending with just", "），而不是基础 URL（通常仅以", "）を使用し、ベース URL（通常の末尾：", "），而不是基礎 URL（通常僅以");
-            Add("⚙️ gear", "⚙️ 齿轮", "⚙️ 歯車", "⚙️ 齒輪");
+            Add("gear icon", "齿轮图标", "歯車アイコン", "齒輪圖示");
 
             foreach (var language in Translations.Values)
                 foreach (var pair in language)
@@ -227,6 +263,7 @@ namespace LiveCaptionsTranslator.utils
             CultureInfo.CurrentUICulture = culture;
             if (save && Translator.Setting != null && Translator.Setting.UiLanguage != CurrentLanguage)
                 Translator.Setting.UiLanguage = CurrentLanguage;
+            LanguageChanged?.Invoke(CurrentLanguage);
 
             if (Application.Current == null)
                 return;
@@ -243,6 +280,7 @@ namespace LiveCaptionsTranslator.utils
 
         private static void Add(string source, string simplifiedChinese, string japanese, string traditionalChinese)
         {
+            KnownSources.Add(source);
             Translations["zh-CN"][source] = simplifiedChinese;
             Translations["ja-JP"][source] = japanese;
             Translations["zh-TW"][source] = traditionalChinese;
@@ -360,6 +398,8 @@ namespace LiveCaptionsTranslator.utils
             if (!originals.TryGetValue(propertyName, out string? source))
             {
                 source = Canonicalize(getter());
+                if (!KnownSources.Contains(source))
+                    return;
                 originals[propertyName] = source;
             }
             setter(Get(source));

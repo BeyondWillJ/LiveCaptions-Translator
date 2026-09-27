@@ -28,11 +28,17 @@ namespace LiveCaptionsTranslator.utils
 
         public static string ReplaceNewlines(string text, int byteThreshold)
         {
+            if (string.IsNullOrEmpty(text))
+                return string.Empty;
+
             string[] splits = text.Split('\n');
             for (int i = 0; i < splits.Length; i++)
             {
                 splits[i] = splits[i].Trim();
                 if (i == splits.Length - 1)
+                    continue;
+
+                if (splits[i].Length == 0)
                     continue;
 
                 char lastChar = splits[i][^1];

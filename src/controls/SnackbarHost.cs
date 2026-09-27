@@ -1,18 +1,17 @@
-﻿using Wpf.Ui.Controls;
+using System.Windows;
+using Wpf.Ui.Controls;
 
 namespace LiveCaptionsTranslator
 {
     class SnackbarHost
     {
-        public static Snackbar? mainSnackbar;
-        public static MainWindow? mainWindow = (MainWindow)App.Current.MainWindow;
+        private static Snackbar? mainSnackbar;
 
         public static void Show(string title = "", string message = "", SnackbarType type = SnackbarType.Info,
                                 int width = 500, int timeout = 1, bool closeButton = false)
         {
             ControlAppearance appearance;
             SymbolIcon icon;
-            Snackbar? snackbar;
 
             switch (type)
             {
@@ -34,8 +33,9 @@ namespace LiveCaptionsTranslator
                     break;
             }
 
-            mainSnackbar ??= new Snackbar(mainWindow?.snackbarHost);
-            snackbar = mainSnackbar;
+            if ((Application.Current?.MainWindow as MainWindow)?.snackbarHost is not { } presenter)
+                return;
+            Snackbar snackbar = mainSnackbar ??= new Snackbar(presenter);
 
             snackbar.SetCurrentValue(Snackbar.TitleProperty, title);
             snackbar.SetCurrentValue(System.Windows.Controls.ContentControl.ContentProperty, message);

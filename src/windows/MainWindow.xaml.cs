@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Data;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -19,22 +20,27 @@ namespace LiveCaptionsTranslator
         {
             InitializeComponent();
             ApplicationThemeManager.ApplySystemTheme();
+            StatusText.DataContext = Translator.Caption;
+            StatusText.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding(nameof(models.Caption.StatusMessage)));
+            StatusRouteText.DataContext = Translator.Caption;
+            StatusRouteText.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding(nameof(models.Caption.StatusRoute)));
+            StatusDiagnosticText.DataContext = Translator.Caption;
+            StatusDiagnosticText.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding(nameof(models.Caption.StatusDiagnostic)));
 
-            Loaded += (s, e) =>
+            Loaded += async (s, e) =>
             {
                 SystemThemeWatcher.Watch(this, WindowBackdropType.Mica, true);
                 RootNavigation.Navigate(typeof(CaptionPage));
                 IsAutoHeight = true;
-                CheckForFirstUse();
-                CheckForUpdates();
+                await CheckForFirstUse();
+                _ = CheckForUpdates();
             };
 
             double screenWidth = SystemParameters.PrimaryScreenWidth;
             double screenHeight = SystemParameters.PrimaryScreenHeight;
 
             var windowState = WindowHandler.LoadState(this, Translator.Setting);
-            if (windowState.Left <= 0 || windowState.Left >= screenWidth ||
-                windowState.Top <= 0 || windowState.Top >= screenHeight)
+            if (!WindowHandler.IsVisibleOnVirtualDesktop(windowState))
             {
                 WindowHandler.RestoreState(this, new Rect(
                     (screenWidth - 775) / 2, screenHeight * 3 / 4 - 167, 775, 167));
@@ -58,10 +64,14 @@ namespace LiveCaptionsTranslator
 
             if (OverlayWindow == null)
             {
-                symbolIcon.Symbol = SymbolRegular.ClosedCaption24;
-                symbolIcon.Filled = true;
+                if (symbolIcon != null)
+                {
+                    symbolIcon.Symbol = SymbolRegular.ClosedCaption24;
+                    symbolIcon.Filled = true;
+                }
 
                 OverlayWindow = new OverlayWindow();
+                OverlayWindow.ClickThroughStateChanged += UpdateOverlayInteractionButton;
                 OverlayWindow.SizeChanged +=
                     (s, e) => WindowHandler.SaveState(OverlayWindow, Translator.Setting);
                 OverlayWindow.LocationChanged +=
@@ -71,8 +81,7 @@ namespace LiveCaptionsTranslator
                 double screenHeight = SystemParameters.PrimaryScreenHeight;
 
                 var windowState = WindowHandler.LoadState(OverlayWindow, Translator.Setting);
-                if (windowState.Left <= 0 || windowState.Left >= screenWidth ||
-                    windowState.Top <= 0 || windowState.Top >= screenHeight)
+                if (!WindowHandler.IsVisibleOnVirtualDesktop(windowState))
                 {
                     WindowHandler.RestoreState(OverlayWindow, new Rect(
                         (screenWidth - 650) / 2, screenHeight * 5 / 6 - 135, 650, 135));
@@ -81,25 +90,20 @@ namespace LiveCaptionsTranslator
                     WindowHandler.RestoreState(OverlayWindow, windowState);
 
                 OverlayWindow.Show();
+                UpdateOverlayInteractionButton();
             }
             else
             {
-                symbolIcon.Symbol = SymbolRegular.ClosedCaptionOff24;
-                symbolIcon.Filled = false;
-
-                switch (OverlayWindow.OnlyMode)
+                if (symbolIcon != null)
                 {
-                    case CaptionVisible.TranslationOnly:
-                        OverlayWindow.OnlyMode = CaptionVisible.SubtitleOnly;
-                        OverlayWindow.OnlyMode = CaptionVisible.Both;
-                        break;
-                    case CaptionVisible.SubtitleOnly:
-                        OverlayWindow.OnlyMode = CaptionVisible.Both;
-                        break;
+                    symbolIcon.Symbol = SymbolRegular.ClosedCaptionOff24;
+                    symbolIcon.Filled = false;
                 }
 
+                OverlayWindow.ClickThroughStateChanged -= UpdateOverlayInteractionButton;
                 OverlayWindow.Close();
                 OverlayWindow = null;
+                UpdateOverlayInteractionButton();
             }
         }
 
@@ -110,13 +114,15 @@ namespace LiveCaptionsTranslator
 
             if (Translator.LogOnlyFlag)
             {
-                Translator.LogOnlyFlag = false;
-                symbolIcon.Filled = false;
+                Translator.SetLogOnly(false);
+                if (symbolIcon != null)
+                    symbolIcon.Filled = false;
             }
             else
             {
-                Translator.LogOnlyFlag = true;
-                symbolIcon.Filled = true;
+                Translator.SetLogOnly(true);
+                if (symbolIcon != null)
+                    symbolIcon.Filled = true;
             }
 
             Translator.ClearContexts();
@@ -145,27 +151,40 @@ namespace LiveCaptionsTranslator
         {
             var button = TopmostButton as Button;
             var symbolIcon = button?.Icon as SymbolIcon;
-            symbolIcon.Filled = enabled;
+            if (symbolIcon != null)
+                symbolIcon.Filled = enabled;
             this.Topmost = enabled;
             Translator.Setting.MainWindow.Topmost = enabled;
         }
 
-        private void CheckForFirstUse()
+        private async Task CheckForFirstUse()
         {
             if (!Translator.FirstUseFlag)
                 return;
 
             RootNavigation.Navigate(typeof(SettingPage));
-            LiveCaptionsHandler.RestoreLiveCaptions(Translator.Window);
-
-            Dispatcher.InvokeAsync(() =>
+            try
             {
-                var welcomeWindow = new WelcomeWindow
-                {
-                    Owner = this
-                };
-                welcomeWindow.Show();
-            }, System.Windows.Threading.DispatcherPriority.Background);
+                await Translator.EnsureLiveCaptionsAsync();
+                if (Translator.Window != null)
+                    LiveCaptionsHandler.RestoreLiveCaptions(Translator.Window);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Live Captions first-use setup failed: {ex.Message}");
+            }
+
+        }
+
+        private void RestoreOverlayInteraction_Click(object sender, RoutedEventArgs e)
+        {
+            OverlayWindow?.RestoreInteraction();
+        }
+
+        private void UpdateOverlayInteractionButton()
+        {
+            RestoreOverlayButton.Visibility = OverlayWindow?.IsClickThrough == true
+                ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private async Task CheckForUpdates()
@@ -180,9 +199,7 @@ namespace LiveCaptionsTranslator
             }
             catch (Exception ex)
             {
-                SnackbarHost.Show(LocalizationService.Get("[ERROR] Update Check Failed."), ex.Message, SnackbarType.Error,
-                    timeout: 2, closeButton: true);
-
+                Debug.WriteLine($"Update check failed: {ex.Message}");
                 return;
             }
 
@@ -190,7 +207,9 @@ namespace LiveCaptionsTranslator
             var ignoredVersion = Translator.Setting.IgnoredUpdateVersion;
             if (!string.IsNullOrEmpty(ignoredVersion) && ignoredVersion == latestVersion)
                 return;
-            if (!string.IsNullOrEmpty(latestVersion) && latestVersion != currentVersion)
+            if (Version.TryParse(latestVersion, out var remoteVersion) &&
+                Version.TryParse(currentVersion, out var localVersion) &&
+                remoteVersion > localVersion)
             {
                 var dialog = new Wpf.Ui.Controls.MessageBox
                 {

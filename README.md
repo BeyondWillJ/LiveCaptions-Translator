@@ -8,8 +8,7 @@
 
 ### *Real-time audio/speech translation tool based on Windows LiveCaptions*
 
-[![Master Build](https://github.com/SakiRinn/LiveCaptions-Translator/actions/workflows/dotnet-build.yml/badge.svg?branch=master)](https://github.com/SakiRinn/LiveCaptions-Translator/actions/workflows/dotnet-build.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/SakiRinn/LiveCaptions-Translator?label=Latest&color=yellow)](https://github.com/SakiRinn/LiveCaptions-Translator/releases/latest)
+[![GitHub Release](https://img.shields.io/github/v/release/BeyondWillJ/LiveCaptions-Translator?label=Latest&color=yellow)](https://github.com/BeyondWillJ/LiveCaptions-Translator/releases/latest)
 [![Windows 11](https://img.shields.io/badge/platform-Windows11-blue?logo=windows11&style=&color=1E9BFA)](https://www.microsoft.com/en-us/software-download/windows11)
 [![GitHub License](https://img.shields.io/github/license/SakiRinn/LiveCaptions-Translator)](https://github.com/SakiRinn/LiveCaptions-Translator/blob/master/LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/SakiRinn/LiveCaptions-Translator)](https://github.com/SakiRinn/LiveCaptions-Translator/stargazers)
@@ -20,13 +19,15 @@
 
 ## Overview
 
-**✨ LiveCaptions Translator = Windows LiveCaptions + Translate API ✨**
+**LiveCaptions Translator = Windows LiveCaptions + Translate API**
 
 This is a lightweight tool that seamlessly integrates translation APIs with Windows Live Captions, enabling real-time speech translation without requiring a Copilot+ PC.
 
 Windows' built-in LiveCaptions is easy to use, uses few resources, and has extremely high recognition accuracy. If empowering it with the awesome translation capabilities of LLMs, you will get... possibly the best real-time translator available to date!
 
-**🚀 Quick Start:** Download from [Releases](https://github.com/SakiRinn/LiveCaptions-Translator/releases) and start with a single click!
+This maintained fork is based on [SakiRinn's original project](https://github.com/SakiRinn/LiveCaptions-Translator) and retains its upstream attribution.
+
+**Quick Start:** Download from this fork's [Releases](https://github.com/BeyondWillJ/LiveCaptions-Translator/releases) and start with a single click!
 
 <div align="center">
   <img src="images/preview.png" alt="Preview of LiveCaptions Translator" width="90%" />
@@ -37,7 +38,7 @@ Windows' built-in LiveCaptions is easy to use, uses few resources, and has extre
 
 ## Features
 
-- **🔄 Seamless Integration**
+- **Seamless Integration**
 
   Automatically invokes Windows LiveCaptions without opening separate windows. Provides a unified experience for real-time audio/speech translation.
 
@@ -51,17 +52,17 @@ Windows' built-in LiveCaptions is easy to use, uses few resources, and has extre
   </div>
 
   By enabling the ***Include microphone audio*** option in the setting of Windows LiveCaptions, you can achieve real-time speech translation!
-  > ⚠️ **IMPORTANT:** You must change the source language in Windows LiveCaptions!
+  > **IMPORTANT:** You must change the source language in Windows LiveCaptions!
 
-- **🎨 Modern Interface**
+- **Modern Interface**
 
   Easy-to-use and clean Fluent UI aligned with modern Windows aesthetics.
 
-  It can automatically switches between light and dark themes 🌓 based on the system setting.
+  It can automatically switches between light and dark themes based on the system setting.
 
-- **🌐 Multiple Translation Services**
+- **Multiple Translation Services**
 
-  Supports various translation engines, including 2 out-of-the-box Google Translate.
+  Supports various translation engines, including Google Translate as a built-in service.
 
   Implemented translation engines are shown in the table below:
 
@@ -83,7 +84,7 @@ Windows' built-in LiveCaptions is easy to use, uses few resources, and has extre
 
   It's strongly recommended using **LLM-based** translation engines, as LLMs excel at handling incomplete sentences and are adept at understanding context.
 
-- **🪟 Overlay Window**
+- **Overlay Window**
 
   Open a borderless, transparent overlay window to display subtitles, providing the most immersive experience. This is very useful for scenarios like gaming, videos, and live streams!
 
@@ -100,11 +101,11 @@ Windows' built-in LiveCaptions is easy to use, uses few resources, and has extre
 
   You can adjust the number of sentences displayed simultaneously in the *Overlay Sentences* section of the setting page.
 
-- **⚙️ Flexible Controls**
+- **Flexible Controls**
 
   Supports Always-on-top window and convenient translation pause/resume, and you can copy text with a single click for quick share or saving.
 
-- **📒 History Management**
+- **History Management**
 
   Records original and translated text, perfect for meetings, lectures, and important discussions.
 
@@ -117,7 +118,7 @@ Windows' built-in LiveCaptions is easy to use, uses few resources, and has extre
     <br>
   </div>
 
-- **🎞️ Log Cards**
+- **Log Cards**
 
   Recent transcription records can be displayed as Log Cards, which helps you better grasp the context.
 
@@ -149,14 +150,14 @@ We suggest you have **.NET runtime 8.0** or higher installed. If you are not ava
 <div align="center">
   <p align="center">
     <a href="https://github.com/SakiRinn/LiveCaptions-Translator/wiki">
-      <img src="https://img.shields.io/badge/📚_Check_our_Wiki_for_detailed_information-2ea44f?style=for-the-badge" alt="Check our Wiki">
+      <img src="https://img.shields.io/badge/Check_our_Wiki_for_detailed_information-2ea44f?style=for-the-badge" alt="Check our Wiki">
     </a>
   </p>
 </div>
 
 ## Getting Started
 
-> ⚠️ **IMPORTANT:** You must complete the following steps before running LiveCaptions Translator for the first time.
+> **IMPORTANT:** You must complete the following steps before running LiveCaptions Translator for the first time.
 >
 > For detailed information, see Microsoft's guide on [Using live captions](https://support.microsoft.com/en-us/windows/use-live-captions-to-better-understand-audio-b52da59c-14b8-4031-aeeb-f6a47e6055df).
 
@@ -174,9 +175,9 @@ Confirm LiveCaptions is available on your system using any of these methods:
 
 When you first start, Windows LiveCaptions will ask for your consent to process voice data on your device and prompt you to download language files to be used by on-device speech recognition.
 
-After launching Windows LiveCaptions, click the **⚙️ gear** icon to open the setting menu, then select **Position** > **Overlaid on screen**.
+After launching Windows LiveCaptions, click the **gear icon** to open the setting menu, then select **Position** > **Overlaid on screen**.
 
-> ⚠️ **VERY IMPORTANT!** Otherwise, a display bug will occur on the screen after hiding Windows LiveCaptions.
+> **VERY IMPORTANT!** Otherwise, a display bug will occur on the screen after hiding Windows LiveCaptions.
 
 <div align="center">
   <img src="images/speech_recognition.png" alt="Items under speech recognition" width="80%" />
@@ -185,7 +186,7 @@ After launching Windows LiveCaptions, click the **⚙️ gear** icon to open the
   <br>
 </div>
 
-After configuration, close Windows LiveCaptions and launch LiveCaptions Translator to start using it! 🎉
+After configuration, close Windows LiveCaptions and launch LiveCaptions Translator to start using it!
 
 ## Project Stats
 

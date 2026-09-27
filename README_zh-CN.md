@@ -8,8 +8,7 @@
 
 ### *基于Windows实时字幕的实时音频/语音翻译工具*
 
-[![Master Build](https://github.com/SakiRinn/LiveCaptions-Translator/actions/workflows/dotnet-build.yml/badge.svg?branch=master)](https://github.com/SakiRinn/LiveCaptions-Translator/actions/workflows/dotnet-build.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/SakiRinn/LiveCaptions-Translator?label=Latest&color=yellow)](https://github.com/SakiRinn/LiveCaptions-Translator/releases/latest)
+[![GitHub Release](https://img.shields.io/github/v/release/BeyondWillJ/LiveCaptions-Translator?label=Latest&color=yellow)](https://github.com/BeyondWillJ/LiveCaptions-Translator/releases/latest)
 [![Windows 11](https://img.shields.io/badge/platform-Windows11-blue?logo=windows11&style=&color=1E9BFA)](https://www.microsoft.com/en-us/software-download/windows11)
 [![GitHub License](https://img.shields.io/github/license/SakiRinn/LiveCaptions-Translator)](https://github.com/SakiRinn/LiveCaptions-Translator/blob/master/LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/SakiRinn/LiveCaptions-Translator)](https://github.com/SakiRinn/LiveCaptions-Translator/stargazers)
@@ -20,13 +19,15 @@
 
 ## 概述
 
-**✨ LiveCaptions Translator = Windows实时字幕 + 翻译API ✨**
+**LiveCaptions Translator = Windows实时字幕 + 翻译API**
 
 这是一个无缝集成翻译API与Windows实时字幕的轻量级工具。它可以实现实时语音翻译，无需Copilot+ PC。
 
 Windows内置的实时字幕简单易用，资源占用少，且识别准确率极高。如果为其赋能LLM强大的翻译能力，你将获得...可能是目前最好的实时翻译器！
 
-**🚀 快速开始:** 从[发布页面](https://github.com/SakiRinn/LiveCaptions-Translator/releases)下载并一键启动！
+本项目是基于 [SakiRinn 原项目](https://github.com/SakiRinn/LiveCaptions-Translator)维护的分支，并保留上游署名。
+
+**快速开始:** 从本分支的[发布页面](https://github.com/BeyondWillJ/LiveCaptions-Translator/releases)下载并一键启动！
 
 <div align="center">
   <img src="images/preview.png" alt="LiveCaptions Translator预览" width="90%" />
@@ -37,7 +38,7 @@ Windows内置的实时字幕简单易用，资源占用少，且识别准确率�
 
 ## 功能特性
 
-- **🔄 无缝集成**
+- **无缝集成**
 
   自动调用Windows实时字幕而无需打开单独窗口。为实时音频/语音翻译提供统一体验。
 
@@ -51,17 +52,17 @@ Windows内置的实时字幕简单易用，资源占用少，且识别准确率�
   </div>
 
   通过在Windows实时字幕设置中启用 ***包含麦克风音频*** 选项，您可以实现实时语音翻译！
-  > ⚠️ **重要:** 您必须在Windows实时字幕中更改源语言！
+  > **重要:** 您必须在Windows实时字幕中更改源语言！
 
-- **🎨 现代化界面**
+- **现代化界面**
 
   易于使用且简洁的Fluent UI与现代Windows美学保持一致。
 
-  它可以根据系统设置自动在浅色和深色主题🌓之间切换。
+  它可以根据系统设置自动在浅色和深色主题之间切换。
 
-- **🌐 多种翻译服务**
+- **多种翻译服务**
 
-  支持各种翻译引擎，包括2个开箱即用的谷歌翻译。
+  支持多种翻译引擎，包括内置谷歌翻译服务。
 
   已实现的翻译引擎如下表所示：
 
@@ -83,7 +84,7 @@ Windows内置的实时字幕简单易用，资源占用少，且识别准确率�
 
   强烈推荐使用 **基于LLM** 的翻译引擎，因为LLM擅长处理不完整的句子并能很好地理解上下文。
 
-- **🪟 悬浮窗口**
+- **悬浮窗口**
 
   打开无边框、透明的悬浮窗口显示字幕，提供最沉浸式的体验。这对游戏、视频和直播等场景非常有用！
 
@@ -100,11 +101,11 @@ Windows内置的实时字幕简单易用，资源占用少，且识别准确率�
 
   您可以在设置页的 *Overlay Sentences* 选项调整同时显示的句子数量。
 
-- **⚙️ 灵活控制**
+- **灵活控制**
 
   支持窗口置顶和便利的翻译暂停/恢复，并且您可以一键复制文本以便快速分享或保存。
 
-- **📒 历史记录管理**
+- **历史记录管理**
 
   记录原文和翻译文本，非常适合会议、讲座和重要讨论。
 
@@ -117,7 +118,7 @@ Windows内置的实时字幕简单易用，资源占用少，且识别准确率�
     <br>
   </div>
 
-- **🎞️ 日志卡片**
+- **日志卡片**
 
   最近的转录记录可以显示为日志卡片，这有助于您更好地把握上下文。
 
@@ -149,14 +150,14 @@ Windows内置的实时字幕简单易用，资源占用少，且识别准确率�
 <div align="center">
   <p align="center">
     <a href="https://github.com/SakiRinn/LiveCaptions-Translator/wiki">
-      <img src="https://img.shields.io/badge/📚_查看我们的Wiki获取详细信息-2ea44f?style=for-the-badge" alt="查看我们的Wiki">
+      <img src="https://img.shields.io/badge/查看我们的Wiki获取详细信息-2ea44f?style=for-the-badge" alt="查看我们的Wiki">
     </a>
   </p>
 </div>
 
 ## 入门指南
 
-> ⚠️ **重要:** 首次运行LiveCaptions Translator前，您必须完成以下步骤。
+> **重要:** 首次运行LiveCaptions Translator前，您必须完成以下步骤。
 >
 > 有关详细信息，请参阅Microsoft的[使用实时字幕](https://support.microsoft.com/zh-cn/windows/使用实时字幕更好地理解音频-b52da59c-14b8-4031-aeeb-f6a47e6055df)指南。
 
@@ -174,9 +175,9 @@ Windows内置的实时字幕简单易用，资源占用少，且识别准确率�
 
 首次启动时，Windows实时字幕会请求您同意在设备上处理语音数据，并提示您下载用于设备上语音识别的语言文件。
 
-启动Windows实时字幕后，点击 **⚙️齿轮** 图标打开设置菜单，然后选择 **位置** > **覆盖在屏幕上** 。
+启动Windows实时字幕后，点击 **齿轮图标** 打开设置菜单，然后选择 **位置** > **覆盖在屏幕上** 。
 
-> ⚠️ **非常重要！** 否则隐藏Windows实时字幕后屏幕会出现显示BUG.
+> **非常重要！** 否则隐藏Windows实时字幕后屏幕会出现显示BUG.
 
 <div align="center">
   <img src="images/speech_recognition.png" alt="语音识别下的项目" width="80%" />
@@ -185,7 +186,7 @@ Windows内置的实时字幕简单易用，资源占用少，且识别准确率�
   <br>
 </div>
 
-配置完成后，关闭Windows实时字幕然后开始使用LiveCaptions Translator吧！🎉
+配置完成后，关闭Windows实时字幕然后开始使用LiveCaptions Translator吧！
 
 ## 项目统计
 

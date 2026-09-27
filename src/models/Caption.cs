@@ -17,10 +17,23 @@ namespace LiveCaptionsTranslator.models
         private string displayTranslatedCaption = string.Empty;
         private string overlayOriginalCaption = " ";
         private string overlayCurrentTranslation = " ";
+        private string overlayTranslatedSourceText = string.Empty;
         private string overlayNoticePrefix = " ";
+        private string statusMessage = string.Empty;
+        private string statusDiagnostic = string.Empty;
+        private string statusRoute = string.Empty;
+        private readonly object contextsLock = new();
 
         public string OriginalCaption { get; set; } = string.Empty;
         public string TranslatedCaption { get; set; } = string.Empty;
+        public long OverlaySourceSegmentId { get; set; }
+        public long OverlaySourceRevision { get; set; }
+        public Guid? OverlaySessionId { get; set; }
+        public long OverlayEpoch { get; set; }
+        public Guid? OverlayTranslationSessionId { get; set; }
+        public long OverlayTranslationEpoch { get; set; }
+        public long OverlayTranslationSegmentId { get; set; }
+        public long OverlayTranslationRevision { get; set; }
 
         public Queue<TranslationHistoryEntry> Contexts { get; } = new(MAX_CONTEXTS);
 
@@ -78,7 +91,54 @@ namespace LiveCaptionsTranslator.models
         }
 
         public string OverlayPreviousTranslation =>
-            GetPreviousText(Translator.Setting.DisplaySentences, TextType.Translation);
+            GetPreviousText(Translator.Setting.DisplaySentences, TextType.Translation,
+                OverlaySourceSegmentId);
+
+        public string StatusMessage
+        {
+            get => statusMessage;
+            set
+            {
+                if (statusMessage == value)
+                    return;
+                statusMessage = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string OverlayTranslatedSourceText
+        {
+            get => overlayTranslatedSourceText;
+            set
+            {
+                overlayTranslatedSourceText = value;
+                OnPropertyChanged("OverlayTranslatedSourceText");
+            }
+        }
+
+        public string StatusDiagnostic
+        {
+            get => statusDiagnostic;
+            set
+            {
+                if (statusDiagnostic == value)
+                    return;
+                statusDiagnostic = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string StatusRoute
+        {
+            get => statusRoute;
+            set
+            {
+                if (statusRoute == value)
+                    return;
+                statusRoute = value;
+                OnPropertyChanged();
+            }
+        }
 
         private Caption()
         {
@@ -92,17 +152,23 @@ namespace LiveCaptionsTranslator.models
             return instance;
         }
 
-        public string GetPreviousText(int count, TextType textType)
+        public string GetPreviousText(int count, TextType textType, long excludedSegmentId = -1)
         {
-            if (count <= 0 || Contexts.Count == 0)
-                return string.Empty;
+            lock (contextsLock)
+            {
+                if (count <= 0 || Contexts.Count == 0)
+                    return string.Empty;
 
-            var prev = Contexts
-                .Reverse().Take(count).Reverse()
-                .Select(entry => entry == null || string.CompareOrdinal(entry.TranslatedText, "N/A") == 0 ||
-                                 entry.TranslatedText.Contains("[ERROR]") || entry.TranslatedText.Contains("[WARNING]") ?
-                    "" : (textType == TextType.Caption ? entry.SourceText : entry.TranslatedText))
-                .Aggregate((accu, cur) =>
+                var values = Contexts
+                    .Where(entry => entry.SegmentId != excludedSegmentId)
+                    .Where(entry => string.Equals(entry.Status, nameof(TranslationStatus.Succeeded), StringComparison.Ordinal))
+                    .Reverse().Take(count).Reverse()
+                    .Select(entry => textType == TextType.Caption ? entry.SourceText : entry.TranslatedText)
+                    .ToList();
+                if (values.Count == 0)
+                    return string.Empty;
+
+                var prev = values.Aggregate((accu, cur) =>
                 {
                     if (!string.IsNullOrEmpty(accu))
                     {
@@ -115,25 +181,49 @@ namespace LiveCaptionsTranslator.models
                     return accu + cur;
                 });
 
-            if (textType == TextType.Translation)
-                prev = RegexPatterns.NoticePrefix().Replace(prev, "");
-            if (!string.IsNullOrEmpty(prev) && Array.IndexOf(TextUtil.PUNC_EOS, prev[^1]) == -1)
-                prev += TextUtil.isCJChar(prev[^1]) ? "。" : ".";
-            if (!string.IsNullOrEmpty(prev) && Encoding.UTF8.GetByteCount(prev[^1].ToString()) < 2)
-                prev += " ";
-            return prev;
+                if (textType == TextType.Translation)
+                    prev = RegexPatterns.NoticePrefix().Replace(prev, "");
+                if (!string.IsNullOrEmpty(prev) && Array.IndexOf(TextUtil.PUNC_EOS, prev[^1]) == -1)
+                    prev += TextUtil.isCJChar(prev[^1]) ? "。" : ".";
+                if (!string.IsNullOrEmpty(prev) && Encoding.UTF8.GetByteCount(prev[^1].ToString()) < 2)
+                    prev += " ";
+                return prev;
+            }
         }
 
         public IEnumerable<TranslationHistoryEntry> GetPreviousContexts(int count)
         {
-            if (count <= 0 || Contexts.Count == 0)
-                return [];
+            lock (contextsLock)
+            {
+                if (count <= 0 || Contexts.Count == 0)
+                    return [];
 
-            return Contexts
-                .Reverse().Take(count).Reverse()
-                .Where(entry => entry != null && string.CompareOrdinal(entry.TranslatedText, "N/A") != 0 &&
-                                !entry.TranslatedText.Contains("[ERROR]") &&
-                                !entry.TranslatedText.Contains("[WARNING]"));
+                return Contexts
+                    .Reverse().Take(count).Reverse()
+                    .Where(entry => entry != null &&
+                                    string.Equals(entry.Status, nameof(TranslationStatus.Succeeded), StringComparison.Ordinal))
+                    .ToList();
+            }
+        }
+
+        public void AddContext(TranslationHistoryEntry entry)
+        {
+            lock (contextsLock)
+            {
+                if (Contexts.Count >= MAX_CONTEXTS)
+                    Contexts.Dequeue();
+                Contexts.Enqueue(entry);
+            }
+            OnPropertyChanged("DisplayLogCards");
+            OnPropertyChanged("OverlayPreviousTranslation");
+        }
+
+        public void ClearContexts()
+        {
+            lock (contextsLock)
+                Contexts.Clear();
+            OnPropertyChanged("DisplayLogCards");
+            OnPropertyChanged("OverlayPreviousTranslation");
         }
 
         public void OnPropertyChanged([CallerMemberName] string propName = "")

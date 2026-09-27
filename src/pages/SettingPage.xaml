@@ -10,16 +10,11 @@
     JournalEntry.KeepAlive="False"
     mc:Ignorable="d">
 
-    <Grid Margin="15">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-
-        <StackPanel Grid.Column="0" Orientation="Vertical">
+    <ScrollViewer
+        HorizontalScrollBarVisibility="Disabled"
+        VerticalScrollBarVisibility="Auto">
+        <WrapPanel Margin="15" ItemWidth="225" Orientation="Horizontal">
+        <StackPanel Width="210" Margin="0,0,15,12" Orientation="Vertical">
             <StackPanel Margin="15,0,0,0" Orientation="Vertical">
                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                     <TextBlock Margin="2.5,0,0,5" Text="LiveCaptions" />
@@ -59,13 +54,10 @@
 
             <StackPanel Margin="15,10,0,0" Orientation="Vertical">
                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                    <TextBlock Margin="2.5,0,0,5" Text="API Interval" />
+                    <TextBlock Margin="2.5,0,0,5" Text="Translate every N caption changes" />
                     <ui:Flyout x:Name="FrequencyInfoFlyout">
                         <TextBlock Width="300" TextWrapping="Wrap">
-                            <Run Text="Determines the frequency of translate API calls. The smaller it is, the more frequent API calls." />
-                            <Run Text="&#x0A;The translate API is called once after the caption changes" />
-                            <Run FontWeight="SemiBold" Text="[API Interval]" />
-                            <Run Text="times." />
+                            <Run Text="Attempts translation for draft captions once every N changes. Final sentences are always translated." />
                         </TextBlock>
                     </ui:Flyout>
                     <Button
@@ -87,20 +79,23 @@
                         Margin="0,0,5,0"
                         AutoToolTipPlacement="TopLeft"
                         AutoToolTipPrecision="0"
+                        Minimum="1"
                         Maximum="10"
                         Value="{Binding MaxSyncInterval, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Margin="3,0,0,0" VerticalAlignment="Center"
+                               Text="{Binding MaxSyncInterval, StringFormat='N = {0}'}" />
                 </StackPanel>
             </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Column="1" Orientation="Vertical">
+        <StackPanel Width="210" Margin="0,0,15,12" Orientation="Vertical">
             <StackPanel Margin="15,0,0,0" Orientation="Vertical">
                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                     <TextBlock Margin="2.5,0,0,5" Text="Translate API" />
                     <ui:Flyout x:Name="TranslateAPIInfoFlyout">
                         <TextBlock
                             Width="300"
-                            Text="Except for Google and Google2, all other APIs require configuring before they can be used."
+                            Text="Except for Google, all other APIs require configuring before they can be used."
                             TextWrapping="Wrap" />
                     </ui:Flyout>
                     <Button
@@ -167,7 +162,7 @@
             </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Column="2" Orientation="Vertical">
+        <StackPanel Width="210" Margin="0,0,15,12" Orientation="Vertical">
             <StackPanel Margin="15,0,0,0" Orientation="Vertical">
                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                     <TextBlock Margin="2.5,0,0,5" Text="API Setting" />
@@ -193,7 +188,7 @@
             </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Column="3" Orientation="Vertical">
+        <StackPanel Width="210" Margin="0,0,15,12" Orientation="Vertical">
             <StackPanel Margin="15,0,0,0" Orientation="Vertical">
                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                     <TextBlock Margin="2.5,0,0,5" Text="Contexts" />
@@ -208,9 +203,7 @@
                             <Run FontWeight="Bold" Text="Log Cards" />
                             <Run Text="is enabled, as well as the max number of sentences displayed in the Overlay Window." />
                             <Run FontWeight="Bold" Text="&#x0A;&#x0A;Note:" />
-                            <Run Text="Contexts must be" />
-                            <Run FontWeight="Bold" Text="greater than or equal" />
-                            <Run Text="Display Sentences. If not met, the program will automatically adjust them." />
+                            <Run Text="Display count is independent of context count." />
                         </TextBlock>
                     </ui:Flyout>
                     <Button
@@ -235,7 +228,7 @@
                     AcceptsExpression="False"
                     SpinButtonPlacementMode="Inline"
                     Maximum="10"
-                    Minimum="1"
+                    Minimum="0"
                     LargeChange="1"
                     SmallChange="1"
                     Value="{Binding NumContexts, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -252,16 +245,18 @@
                     ClearButtonEnabled="False"
                     AcceptsExpression="False"
                     SpinButtonPlacementMode="Inline"
-                    Maximum="6"
+                    Maximum="10"
                     Minimum="0"
                     LargeChange="1"
                     SmallChange="1"
                     Value="{Binding DisplaySentences, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     ValueChanged="DisplaySentences_ValueChanged" />
+                <TextBlock Width="150" Margin="2.5,4,0,0" FontSize="10" TextWrapping="Wrap"
+                           Text="Display count is independent of context count." />
             </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Column="4" Orientation="Vertical">
+        <StackPanel Width="210" Margin="0,0,15,12" Orientation="Vertical">
             <StackPanel Margin="15,0,0,0" Orientation="Vertical">
                 <TextBlock Margin="2.5,0,0,5" Text="Context Aware" />
                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
@@ -294,28 +289,62 @@
             </StackPanel>
             <StackPanel Margin="15,10,0,0" Orientation="Vertical">
                 <TextBlock Margin="2.5,0,0,5" Text="Overlay Font" />
+                <TextBlock
+                    Margin="2.5,0,0,4"
+                    FontSize="11"
+                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                    Text="Search font or style" />
+                <TextBox
+                    x:Name="FontSearchBox"
+                    Width="195"
+                    Height="32"
+                    Margin="0,0,0,6"
+                    Padding="8,4"
+                    TextChanged="FontSearchBox_TextChanged" />
                 <ComboBox
                     x:Name="OverlayFontFamilyBox"
-                    Width="160"
-                    Height="30"
+                    Width="195"
+                    Height="38"
                     Padding="10,4,10,7"
                     FontSize="13.3"
-                    IsEditable="True"
-                    IsTextSearchEnabled="False"
+                    IsEditable="False"
+                    IsEnabled="False"
+                    IsTextSearchEnabled="True"
                     MaxDropDownHeight="360"
                     ScrollViewer.CanContentScroll="True"
                     ScrollViewer.IsDeferredScrollingEnabled="True"
-                    StaysOpenOnEdit="True"
                     VirtualizingPanel.IsContainerVirtualizable="True"
                     VirtualizingPanel.IsVirtualizing="True"
                     VirtualizingPanel.VirtualizationMode="Recycling"
-                    DropDownOpened="OverlayFontFamilyBox_DropDownOpened"
                     SelectionChanged="OverlayFontFamilyBox_SelectionChanged">
                     <ComboBox.ItemsPanel>
                         <ItemsPanelTemplate>
                             <VirtualizingStackPanel VirtualizationMode="Recycling" />
                         </ItemsPanelTemplate>
                     </ComboBox.ItemsPanel>
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock
+                                Padding="2"
+                                FontFamily="{Binding Family}"
+                                FontSize="15"
+                                Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock
+                    Margin="2.5,7,0,4"
+                    FontSize="11"
+                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                    Text="Font style" />
+                <ComboBox
+                    x:Name="OverlayFontFaceBox"
+                    Width="195"
+                    Height="38"
+                    Padding="10,4,10,7"
+                    FontSize="13.3"
+                    IsEnabled="False"
+                    SelectionChanged="OverlayFontFaceBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <TextBlock
@@ -329,9 +358,15 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
+                <TextBlock
+                    x:Name="FontLoadStatus"
+                    Margin="2.5,5,0,0"
+                    FontSize="11"
+                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                    Text="Loading fonts..." />
             </StackPanel>
             <StackPanel Margin="15,10,0,0" Orientation="Vertical">
-                <TextBlock Margin="2.5,0,0,5" Text="Clear After Silence (s)" />
+                <TextBlock Margin="2.5,0,0,5" Text="Clear after no caption updates (s)" />
                 <ui:NumberBox
                     Width="135"
                     Height="30"
@@ -344,7 +379,7 @@
                     Minimum="0"
                     LargeChange="0.5"
                     SmallChange="0.5"
-                    ToolTip="0 disables automatic Overlay clearing"
+                    ToolTip="Clear the overlay after captions stop changing for this duration. 0 disables automatic clearing."
                     Value="{Binding OverlayWindow.SilenceClearDelay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
             <StackPanel Margin="15,10,0,0" Orientation="Vertical">
@@ -365,5 +400,6 @@
                 </ComboBox>
             </StackPanel>
         </StackPanel>
-    </Grid>
+        </WrapPanel>
+    </ScrollViewer>
 </Page>

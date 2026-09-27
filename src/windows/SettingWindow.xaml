@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:LiveCaptionsTranslator"
+    xmlns:controls="clr-namespace:LiveCaptionsTranslator.controls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     Title="API Setting"
@@ -198,6 +199,12 @@
                             FontSize="28"
                             FontWeight="Heavy"
                             Text="API Setting" />
+
+                        <ui:TextBlock
+                            x:Name="SecretStorageNotice"
+                            Margin="10,0,10,12"
+                            Foreground="DarkGoldenrod"
+                            TextWrapping="Wrap" />
 
                         <StackPanel x:Name="AllSettings" Margin="5">
                             <StackPanel x:Name="PromptSection" Margin="20">
@@ -644,12 +651,10 @@
                                                 Margin="15,10,0,0"
                                                 Orientation="Vertical">
                                                 <ui:TextBlock Margin="2.5,0,0,5" Text="API Key" />
-                                                <ui:TextBox
+                                                <controls:SecretInput
                                                     Width="200"
                                                     Height="30"
-                                                    Padding="10,4,10,7"
-                                                    FontSize="13.3"
-                                                    Text="{Binding [OpenAI].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    SecretValue="{Binding [OpenAI].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Grid>
                                     </StackPanel>
@@ -755,12 +760,10 @@
                                                 Margin="15,0,0,0"
                                                 Orientation="Vertical">
                                                 <ui:TextBlock Margin="2.5,0,0,5" Text="API Key" />
-                                                <ui:TextBox
+                                                <controls:SecretInput
                                                     Width="200"
                                                     Height="30"
-                                                    Padding="10,4,10,7"
-                                                    FontSize="13.3"
-                                                    Text="{Binding [OpenRouter].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    SecretValue="{Binding [OpenRouter].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Grid>
                                     </StackPanel>
@@ -845,12 +848,10 @@
                                                 Margin="15,10,0,0"
                                                 Orientation="Vertical">
                                                 <ui:TextBlock Margin="2.5,0,0,5" Text="API Key" />
-                                                <ui:TextBox
+                                                <controls:SecretInput
                                                     Width="200"
                                                     Height="30"
-                                                    Padding="10,4,10,7"
-                                                    FontSize="13.3"
-                                                    Text="{Binding [DeepL].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    SecretValue="{Binding [DeepL].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Grid>
                                     </StackPanel>
@@ -951,12 +952,10 @@
                                                 Margin="15,10,0,0"
                                                 Orientation="Vertical">
                                                 <ui:TextBlock Margin="2.5,0,0,5" Text="APP Secret" />
-                                                <ui:TextBox
+                                                <controls:SecretInput
                                                     Width="200"
                                                     Height="30"
-                                                    Padding="10,4,10,7"
-                                                    FontSize="13.3"
-                                                    Text="{Binding [Youdao].AppSecret, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    SecretValue="{Binding [Youdao].AppSecret, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Grid>
                                     </StackPanel>
@@ -1065,12 +1064,10 @@
                                                 Margin="15,10,0,0"
                                                 Orientation="Vertical">
                                                 <ui:TextBlock Margin="2.5,0,0,5" Text="API Key" />
-                                                <ui:TextBox
+                                                <controls:SecretInput
                                                     Width="200"
                                                     Height="30"
-                                                    Padding="10,4,10,7"
-                                                    FontSize="13.3"
-                                                    Text="{Binding [MTranServer].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    SecretValue="{Binding [MTranServer].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Grid>
                                     </StackPanel>
@@ -1171,12 +1168,10 @@
                                                 Margin="15,10,0,0"
                                                 Orientation="Vertical">
                                                 <ui:TextBlock Margin="2.5,0,0,5" Text="APP Secret" />
-                                                <ui:TextBox
+                                                <controls:SecretInput
                                                     Width="200"
                                                     Height="30"
-                                                    Padding="10,4,10,7"
-                                                    FontSize="13.3"
-                                                    Text="{Binding [Baidu].AppSecret, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    SecretValue="{Binding [Baidu].AppSecret, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Grid>
                                     </StackPanel>
@@ -1264,12 +1259,10 @@
                                                 Margin="15,10,0,0"
                                                 Orientation="Vertical">
                                                 <ui:TextBlock Margin="2.5,0,0,5" Text="API Key" />
-                                                <ui:TextBox
+                                                <controls:SecretInput
                                                     Width="200"
                                                     Height="30"
-                                                    Padding="10,4,10,7"
-                                                    FontSize="13.3"
-                                                    Text="{Binding [LibreTranslate].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    SecretValue="{Binding [LibreTranslate].ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Grid>
                                     </StackPanel>

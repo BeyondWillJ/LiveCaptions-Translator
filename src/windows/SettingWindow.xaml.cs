@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -16,14 +17,18 @@ namespace LiveCaptionsTranslator
 {
     public partial class SettingWindow : FluentWindow
     {
-        private System.Windows.Controls.Button currentSelected;
-        private Dictionary<string, FrameworkElement> sectionReferences;
+        private System.Windows.Controls.Button? currentSelected;
+        private Dictionary<string, FrameworkElement> sectionReferences = new();
 
         public SettingWindow()
         {
             InitializeComponent();
             ApplicationThemeManager.ApplySystemTheme();
             DataContext = Translator.Setting;
+            SecretProtector.StatusChanged += RefreshSecretStorageNotice;
+            LocalizationService.LanguageChanged += OnLanguageChanged;
+            Closed += (_, _) => StopWatchingSecretStorageStatus();
+            RefreshSecretStorageNotice();
 
             Loaded += (sender, args) =>
             {
@@ -35,6 +40,8 @@ namespace LiveCaptionsTranslator
 
         private void Initialize()
         {
+            RefreshSecretStorageNotice();
+
             sectionReferences = new Dictionary<string, FrameworkElement>
             {
                 { "General", ContentPanel },
@@ -44,21 +51,51 @@ namespace LiveCaptionsTranslator
             foreach (var apiName in TranslateAPI.TRANSLATE_FUNCTIONS.Keys.Where(apiName =>
                          !TranslateAPI.NO_CONFIG_APIS.Contains(apiName)))
             {
-                sectionReferences[apiName] = FindName($"{apiName}Section") as StackPanel;
+                if (FindName($"{apiName}Section") is StackPanel section)
+                    sectionReferences[apiName] = section;
                 SwitchConfig(apiName, Translator.Setting.ConfigIndices[apiName]);
             }
         }
 
+        private void RefreshSecretStorageNotice()
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                if (!Dispatcher.HasShutdownStarted && !Dispatcher.HasShutdownFinished)
+                    Dispatcher.BeginInvoke(new Action(RefreshSecretStorageNotice), DispatcherPriority.DataBind);
+                return;
+            }
+
+            var warnings = new List<string>
+            {
+                LocalizationService.Get("API keys are protected for the current Windows user; re-enter them on another device.")
+            };
+            if (SecretProtector.DecryptionFailed)
+                warnings.Add(LocalizationService.Get("Saved API keys could not be decrypted. Enter them again."));
+            if (!string.IsNullOrWhiteSpace(SecretProtector.CleanupWarning))
+                warnings.Add($"{LocalizationService.Get("Remove the old plaintext file:")} {SecretProtector.CleanupWarning}");
+            if (!string.IsNullOrWhiteSpace(SecretProtector.PersistenceWarning))
+                warnings.Add($"{LocalizationService.Get("Settings could not be saved securely:")} {SecretProtector.PersistenceWarning}");
+            SecretStorageNotice.Text = string.Join(" ", warnings);
+        }
+
+        private void OnLanguageChanged(string _) => RefreshSecretStorageNotice();
+
+        internal void StopWatchingSecretStorageStatus()
+        {
+            SecretProtector.StatusChanged -= RefreshSecretStorageNotice;
+            LocalizationService.LanguageChanged -= OnLanguageChanged;
+        }
+
         private void NewButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button)
+            if (sender is Button button && button.Tag is string apiName &&
+                Translator.Setting.Configs.TryGetValue(apiName, out var configs) &&
+                Translator.Setting.ConfigIndices.TryGetValue(apiName, out int configIndex))
             {
-                string apiName = button.Tag as string;
-                var configs = Translator.Setting.Configs[apiName];
-                var configIndex = Translator.Setting.ConfigIndices[apiName];
-
-                var type = Type.GetType($"LiveCaptionsTranslator.models.{apiName}Config");
-                var config = Activator.CreateInstance(type) as TranslateAPIConfig;
+                Type? type = Type.GetType($"LiveCaptionsTranslator.models.{apiName}Config");
+                if (type is null || Activator.CreateInstance(type) is not TranslateAPIConfig config)
+                    return;
                 configs.Insert(configIndex + 1, config);
                 SwitchConfig(apiName, configIndex + 1);
 
@@ -68,12 +105,10 @@ namespace LiveCaptionsTranslator
 
         private void DeleteButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button)
+            if (sender is Button button && button.Tag is string apiName &&
+                Translator.Setting.Configs.TryGetValue(apiName, out var configs) &&
+                Translator.Setting.ConfigIndices.TryGetValue(apiName, out int configIndex))
             {
-                string apiName = button.Tag as string;
-                var configs = Translator.Setting.Configs[apiName];
-                var configIndex = Translator.Setting.ConfigIndices[apiName];
-
                 if (configs.Count <= 1)
                 {
                     (FindName($"{apiName}DeleteFlyout") as Flyout)?.Show();
@@ -88,20 +123,18 @@ namespace LiveCaptionsTranslator
 
         private void PriorButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button)
+            if (sender is Button button && button.Tag is string apiName &&
+                Translator.Setting.ConfigIndices.TryGetValue(apiName, out int configIndex))
             {
-                string apiName = button.Tag as string;
-                var configIndex = Translator.Setting.ConfigIndices[apiName];
                 SwitchConfig(apiName, configIndex - 1);
             }
         }
 
         private void NextButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button)
+            if (sender is Button button && button.Tag is string apiName &&
+                Translator.Setting.ConfigIndices.TryGetValue(apiName, out int configIndex))
             {
-                string apiName = button.Tag as string;
-                var configIndex = Translator.Setting.ConfigIndices[apiName];
                 SwitchConfig(apiName, configIndex + 1);
             }
         }
@@ -111,9 +144,9 @@ namespace LiveCaptionsTranslator
             if (sender is System.Windows.Controls.Button button)
             {
                 SelectButton(button);
-                string targetSection = button.Tag.ToString();
-                if (sectionReferences.TryGetValue(targetSection, out FrameworkElement element))
-                    element.BringIntoView();
+                if (button.Tag is string targetSection &&
+                    sectionReferences.TryGetValue(targetSection, out FrameworkElement? element))
+                    element?.BringIntoView();
             }
         }
 
@@ -199,7 +232,9 @@ namespace LiveCaptionsTranslator
 
         private void SwitchConfig(string apiName, int index)
         {
-            if (index < 0 || index >= Translator.Setting.Configs[apiName].Count)
+            if (!Translator.Setting.Configs.TryGetValue(apiName, out var configs) ||
+                !Translator.Setting.ConfigIndices.ContainsKey(apiName) ||
+                index < 0 || index >= configs.Count)
                 return;
 
             if (Translator.Setting.ConfigIndices[apiName] != index)
@@ -207,7 +242,7 @@ namespace LiveCaptionsTranslator
 
             if (FindName($"{apiName}Index") is TextBlock indexTextBlock)
             {
-                int total = Translator.Setting.Configs[apiName].Count;
+                int total = configs.Count;
                 indexTextBlock.Text = $"{index + 1}/{total}";
             }
             Translator.Setting.OnPropertyChanged(null);

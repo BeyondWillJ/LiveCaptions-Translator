@@ -5,43 +5,172 @@ using LiveCaptionsTranslator.apis;
 
 namespace LiveCaptionsTranslator.utils
 {
+    public sealed record LiveCaptionsSession(
+        AutomationElement Window,
+        int ProcessId,
+        DateTime ProcessStartTimeUtc,
+        bool OwnsProcess,
+        bool WasHidden);
+
     public static class LiveCaptionsHandler
     {
         public static readonly string PROCESS_NAME = "LiveCaptions";
+        private static readonly TimeSpan ProcessExitTimeout = TimeSpan.FromSeconds(2);
 
         private static AutomationElement? captionsTextBlock = null;
 
-        public static AutomationElement LaunchLiveCaptions()
+        public static async Task<LiveCaptionsSession> ConnectAsync(CancellationToken token = default)
         {
-            // Init
-            KillAllProcessesByPName(PROCESS_NAME);
-            var process = Process.Start(PROCESS_NAME);
+            Process? existing = SelectExistingProcess();
+            bool ownsProcess = existing is null;
+            Process process = existing ?? Process.Start(PROCESS_NAME) ??
+                throw new InvalidOperationException("Windows Live Captions could not be started.");
 
-            // Search for window
-            AutomationElement? window = null;
-            for (int attemptCount = 0;
-                 window == null || window.Current.ClassName.CompareTo("LiveCaptionsDesktopWindow") != 0;
-                 attemptCount++)
+            try
             {
-                window = FindWindowByPId(process.Id);
-                if (attemptCount > 10000)
-                    throw new Exception("Failed to launch LiveCaptions!");
-            }
+                AutomationElement? window = null;
+                for (int attemptCount = 0; attemptCount < 100; attemptCount++)
+                {
+                    token.ThrowIfCancellationRequested();
+                    window = FindWindowByPId(process.Id);
+                    if (window != null &&
+                        string.Equals(window.Current.ClassName, "LiveCaptionsDesktopWindow", StringComparison.Ordinal))
+                        break;
+                    window = null;
+                    await Task.Delay(50, token);
+                }
 
-            return window;
+                if (window == null)
+                    throw new TimeoutException("Timed out while waiting for Windows Live Captions.");
+
+                bool wasHidden = window.Current.BoundingRectangle == System.Windows.Rect.Empty;
+                return new LiveCaptionsSession(window, process.Id, process.StartTime.ToUniversalTime(),
+                    ownsProcess, wasHidden);
+            }
+            catch
+            {
+                if (ownsProcess)
+                    StopOwnedProcess(process);
+                throw;
+            }
+            finally { process.Dispose(); }
         }
 
-        public static void KillLiveCaptions(AutomationElement window)
+        private static Process? SelectExistingProcess()
         {
-            // Search for process
+            Process? selected = null;
+            DateTime selectedStartTime = DateTime.MinValue;
+            foreach (Process candidate in Process.GetProcessesByName(PROCESS_NAME))
+            {
+                try
+                {
+                    if (candidate.HasExited)
+                    {
+                        candidate.Dispose();
+                        continue;
+                    }
+
+                    DateTime startTime = candidate.StartTime;
+                    if (selected is null || startTime > selectedStartTime)
+                    {
+                        selected?.Dispose();
+                        selected = candidate;
+                        selectedStartTime = startTime;
+                    }
+                    else
+                        candidate.Dispose();
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or
+                                           System.ComponentModel.Win32Exception or UnauthorizedAccessException)
+                {
+                    candidate.Dispose();
+                }
+            }
+            return selected;
+        }
+
+        private static void StopOwnedProcess(Process process)
+        {
+            try
+            {
+                if (process.HasExited)
+                    return;
+                process.Kill();
+                if (!process.WaitForExit((int)ProcessExitTimeout.TotalMilliseconds))
+                    Debug.WriteLine("Windows Live Captions did not exit within the startup cleanup timeout.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Could not clean up the owned Windows Live Captions process: {ex.GetType().Name}.");
+            }
+        }
+
+        public static bool KillLiveCaptions(AutomationElement window)
+        {
             nint hWnd = new nint((long)window.Current.NativeWindowHandle);
             WindowsAPI.GetWindowThreadProcessId(hWnd, out int processId);
-            var process = Process.GetProcessById(processId);
-
-            // Kill process
-            process.Kill();
-            process.WaitForExit();
+            return KillLiveCaptions(processId, expectedStartTimeUtc: null);
         }
+
+        public static bool KillLiveCaptions(LiveCaptionsSession session)
+        {
+            return KillLiveCaptions(session.ProcessId, session.ProcessStartTimeUtc);
+        }
+
+        private static bool KillLiveCaptions(int processId, DateTime? expectedStartTimeUtc)
+        {
+            Process process;
+            try { process = Process.GetProcessById(processId); }
+            catch (ArgumentException) { return true; }
+
+            using (process)
+            {
+                if (process.HasExited)
+                    return true;
+
+                if (expectedStartTimeUtc.HasValue &&
+                    !IsSameProcessInstance(expectedStartTimeUtc.Value, process.StartTime.ToUniversalTime()))
+                    return true;
+
+                process.Kill();
+                return process.WaitForExit((int)ProcessExitTimeout.TotalMilliseconds);
+            }
+        }
+
+        internal static bool ReleaseSession(
+            LiveCaptionsSession session,
+            Func<LiveCaptionsSession, bool> killOwnedProcess,
+            Action<AutomationElement> restoreExistingWindow)
+        {
+            if (session.OwnsProcess)
+                return killOwnedProcess(session);
+            if (!session.WasHidden)
+                restoreExistingWindow(session.Window);
+            return true;
+        }
+
+        internal static void InitializeSessionOrRelease(
+            LiveCaptionsSession session,
+            Action<AutomationElement> initializeWindow,
+            Action<LiveCaptionsSession> releaseSession)
+        {
+            try
+            {
+                initializeWindow(session.Window);
+            }
+            catch
+            {
+                try { releaseSession(session); }
+                catch (Exception cleanupException)
+                {
+                    Debug.WriteLine($"Could not release the caption session after setup failure: {cleanupException.GetType().Name}.");
+                }
+                throw;
+            }
+        }
+
+        internal static bool IsSameProcessInstance(DateTime expectedStartTimeUtc, DateTime actualStartTimeUtc) =>
+            expectedStartTimeUtc.ToUniversalTime() == actualStartTimeUtc.ToUniversalTime();
 
         public static void HideLiveCaptions(AutomationElement window)
         {
@@ -68,17 +197,43 @@ namespace LiveCaptionsTranslator.utils
 
             RECT rect;
             if (!WindowsAPI.GetWindowRect(hWnd, out rect))
-                throw new Exception("Unable to get the window rectangle of LiveCaptions!");
-            int width = rect.Right - rect.Left;
-            int height = rect.Bottom - rect.Top;
-            int x = rect.Left;
-            int y = rect.Top;
+                throw new InvalidOperationException("Unable to get the window rectangle of Live Captions.");
 
-            bool isSuccess = true;
-            if (x < 0 || y < 0 || width < 100 || height < 100)
-                isSuccess = WindowsAPI.MoveWindow(hWnd, 800, 600, 600, 200, true);
-            if (!isSuccess)
+            int virtualLeft = WindowsAPI.GetSystemMetrics(WindowsAPI.SM_XVIRTUALSCREEN);
+            int virtualTop = WindowsAPI.GetSystemMetrics(WindowsAPI.SM_YVIRTUALSCREEN);
+            var virtualDesktop = new RECT
+            {
+                Left = virtualLeft,
+                Top = virtualTop,
+                Right = virtualLeft + WindowsAPI.GetSystemMetrics(WindowsAPI.SM_CXVIRTUALSCREEN),
+                Bottom = virtualTop + WindowsAPI.GetSystemMetrics(WindowsAPI.SM_CYVIRTUALSCREEN)
+            };
+
+            if (!NeedsCaptionWindowCorrection(rect, virtualDesktop))
+                return;
+
+            int screenWidth = WindowsAPI.GetSystemMetrics(WindowsAPI.SM_CXSCREEN);
+            int screenHeight = WindowsAPI.GetSystemMetrics(WindowsAPI.SM_CYSCREEN);
+            int width = Math.Min(600, screenWidth);
+            int height = Math.Min(200, screenHeight);
+            int x = Math.Max(0, (screenWidth - width) / 2);
+            int y = Math.Max(0, (screenHeight - height) / 2);
+            if (width <= 0 || height <= 0 || !WindowsAPI.MoveWindow(hWnd, x, y, width, height, true))
                 throw new Exception("Failed to fix LiveCaptions!");
+        }
+
+        internal static bool NeedsCaptionWindowCorrection(RECT windowBounds, RECT virtualDesktop)
+        {
+            int width = windowBounds.Right - windowBounds.Left;
+            int height = windowBounds.Bottom - windowBounds.Top;
+            int desktopWidth = virtualDesktop.Right - virtualDesktop.Left;
+            int desktopHeight = virtualDesktop.Bottom - virtualDesktop.Top;
+            if (width <= 0 || height <= 0 || desktopWidth <= 0 || desktopHeight <= 0)
+                return true;
+
+            return !WindowHandler.IsVisibleOnVirtualDesktop(
+                new System.Windows.Rect(windowBounds.Left, windowBounds.Top, width, height),
+                new System.Windows.Rect(virtualDesktop.Left, virtualDesktop.Top, desktopWidth, desktopHeight));
         }
 
         public static string GetCaptions(AutomationElement window)
@@ -96,7 +251,7 @@ namespace LiveCaptionsTranslator.utils
             }
         }
 
-        private static AutomationElement FindWindowByPId(int processId)
+        private static AutomationElement? FindWindowByPId(int processId)
         {
             var condition = new PropertyCondition(AutomationElement.ProcessIdProperty, processId);
             return AutomationElement.RootElement.FindFirst(TreeScope.Children, condition);
@@ -157,16 +312,5 @@ namespace LiveCaptionsTranslator.utils
             return false;
         }
 
-        private static void KillAllProcessesByPName(string processName)
-        {
-            var processes = Process.GetProcessesByName(processName);
-            if (processes.Length == 0)
-                return;
-            foreach (Process process in processes)
-            {
-                process.Kill();
-                process.WaitForExit();
-            }
-        }
     }
 }

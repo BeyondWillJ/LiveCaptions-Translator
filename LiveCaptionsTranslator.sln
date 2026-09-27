@@ -5,6 +5,8 @@ VisualStudioVersion = 17.11.35303.130
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveCaptionsTranslator", "LiveCaptionsTranslator.csproj", "{CD3BA96F-150E-4413-80D8-DE357DB7A937}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveCaptionsTranslator.Tests", "tests\LiveCaptionsTranslator.Tests.csproj", "{7C6B1B03-489F-4C4F-99DE-D63DDBDF59F4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,14 @@ Global
 		{CD3BA96F-150E-4413-80D8-DE357DB7A937}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CD3BA96F-150E-4413-80D8-DE357DB7A937}.Release|ARM64.ActiveCfg = Release|ARM64
 		{CD3BA96F-150E-4413-80D8-DE357DB7A937}.Release|ARM64.Build.0 = Release|ARM64
+		{7C6B1B03-489F-4C4F-99DE-D63DDBDF59F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C6B1B03-489F-4C4F-99DE-D63DDBDF59F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C6B1B03-489F-4C4F-99DE-D63DDBDF59F4}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{7C6B1B03-489F-4C4F-99DE-D63DDBDF59F4}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{7C6B1B03-489F-4C4F-99DE-D63DDBDF59F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C6B1B03-489F-4C4F-99DE-D63DDBDF59F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C6B1B03-489F-4C4F-99DE-D63DDBDF59F4}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{7C6B1B03-489F-4C4F-99DE-D63DDBDF59F4}.Release|ARM64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

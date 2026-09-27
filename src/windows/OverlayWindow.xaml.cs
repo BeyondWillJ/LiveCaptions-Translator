@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using Wpf.Ui.Controls;
 
 using LiveCaptionsTranslator.apis;
+using LiveCaptionsTranslator.models;
 using LiveCaptionsTranslator.utils;
 using LiveCaptionsTranslator.Utils;
 using Button = Wpf.Ui.Controls.Button;
@@ -21,15 +22,14 @@ namespace LiveCaptionsTranslator
     {
         private CaptionVisible onlyMode = CaptionVisible.Both;
         private readonly DispatcherTimer silenceClearTimer = new();
+        private readonly OverlayPresentationState presentationState = new();
         private bool renderQueued;
         private bool overflowCheckQueued;
-        private string lastOriginalCaption = string.Empty;
-        private string lastCurrentTranslation = string.Empty;
-        private string lastPreviousTranslation = string.Empty;
-        private string lastNoticePrefix = string.Empty;
-        private string clearedOriginalPrefix = string.Empty;
-        private string clearedTranslationPrefix = string.Empty;
-        private bool overlayWasCleared;
+        private CaptionLocation switchMode = CaptionLocation.TranslationTop;
+        private bool isClickThrough;
+        public event Action? ClickThroughStateChanged;
+
+        public bool IsClickThrough => isClickThrough;
 
         public CaptionVisible OnlyMode
         {
@@ -38,13 +38,30 @@ namespace LiveCaptionsTranslator
             {
                 onlyMode = value;
                 ResizeForOnlyMode();
+                UpdateOnlyModeIcon();
+                Translator.Setting.OverlayWindow.DisplayMode = value;
             }
         }
-        public CaptionLocation SwitchMode { get; set; } = CaptionLocation.TranslationTop;
+        public CaptionLocation SwitchMode
+        {
+            get => switchMode;
+            set
+            {
+                switchMode = value;
+                ApplyCaptionLocation();
+                Translator.Setting.OverlayWindow.CaptionLocation = value;
+            }
+        }
 
         public OverlayWindow()
         {
             InitializeComponent();
+
+            onlyMode = Translator.Setting.OverlayWindow.DisplayMode;
+            switchMode = Translator.Setting.OverlayWindow.CaptionLocation;
+            ResizeForOnlyMode();
+            UpdateOnlyModeIcon();
+            ApplyCaptionLocation();
 
             silenceClearTimer.Tick += SilenceClearTimer_Tick;
             Loaded += OverlayWindow_Loaded;
@@ -70,8 +87,8 @@ namespace LiveCaptionsTranslator
         {
             Translator.Caption.PropertyChanged += TranslatedChanged;
             Translator.Setting.OverlayWindow.PropertyChanged += OverlaySettingChanged;
-            CaptureOverlayText();
-            RenderOverlay();
+            presentationState.Reset(CaptureOverlaySnapshot());
+            ApplyRender(presentationState.CurrentRender);
             RestartSilenceClearTimer();
             QueueOverflowCheck();
         }
@@ -158,7 +175,10 @@ namespace LiveCaptionsTranslator
         private void TranslatedChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName is "OverlayOriginalCaption" or "OverlayCurrentTranslation" or
-                "OverlayPreviousTranslation" or "OverlayNoticePrefix")
+                "OverlayPreviousTranslation" or "OverlayNoticePrefix" or "OverlaySessionId" or
+                "OverlayEpoch" or "OverlayTranslationSessionId" or "OverlayTranslationEpoch" or
+                "OverlayTranslationSegmentId" or "OverlayTranslationRevision" or
+                "OverlayTranslatedSourceText")
                 QueueOverlayUpdate();
         }
 
@@ -181,16 +201,12 @@ namespace LiveCaptionsTranslator
             if (Translator.Caption == null)
                 return;
 
-            bool textChanged = false;
-            textChanged |= UpdateIfChanged(ref lastOriginalCaption, Translator.Caption.OverlayOriginalCaption);
-            textChanged |= UpdateIfChanged(ref lastCurrentTranslation, Translator.Caption.OverlayCurrentTranslation);
-            textChanged |= UpdateIfChanged(ref lastPreviousTranslation, Translator.Caption.OverlayPreviousTranslation);
-            textChanged |= UpdateIfChanged(ref lastNoticePrefix, Translator.Caption.OverlayNoticePrefix);
-            if (!textChanged)
+            OverlayUpdate update = presentationState.Update(CaptureOverlaySnapshot());
+            if (!update.Changed)
                 return;
-
-            RenderOverlay();
-            RestartSilenceClearTimer();
+            if (update.RestartSilenceTimer)
+                RestartSilenceClearTimer();
+            ApplyRender(update.Render);
             QueueOverflowCheck();
         }
 
@@ -237,74 +253,43 @@ namespace LiveCaptionsTranslator
             }
         }
 
-        private static bool UpdateIfChanged(ref string previous, string current)
-        {
-            if (string.Equals(previous, current, StringComparison.Ordinal))
-                return false;
-            previous = current;
-            return true;
-        }
-
-        private void CaptureOverlayText()
-        {
-            lastOriginalCaption = Translator.Caption.OverlayOriginalCaption;
-            lastCurrentTranslation = Translator.Caption.OverlayCurrentTranslation;
-            lastPreviousTranslation = Translator.Caption.OverlayPreviousTranslation;
-            lastNoticePrefix = Translator.Caption.OverlayNoticePrefix;
-        }
+        private static OverlaySnapshot CaptureOverlaySnapshot() => new(
+            Translator.Caption.OverlaySourceSegmentId,
+            Translator.Caption.OverlaySourceRevision,
+            Translator.Caption.OverlayOriginalCaption,
+            Translator.Caption.OverlayTranslationSegmentId,
+            Translator.Caption.OverlayTranslationRevision,
+            Translator.Caption.OverlayCurrentTranslation,
+            Translator.Caption.OverlayPreviousTranslation,
+            Translator.Caption.OverlayNoticePrefix,
+            Translator.Caption.OverlaySessionId,
+            Translator.Caption.OverlayEpoch,
+            Translator.Caption.OverlayTranslationSessionId,
+            Translator.Caption.OverlayTranslationEpoch,
+            Translator.Caption.OverlayTranslatedSourceText);
 
         private void RestartSilenceClearTimer()
         {
             silenceClearTimer.Stop();
             double delay = Translator.Setting.OverlayWindow.SilenceClearDelay;
-            if (delay <= 0 || !IsLastSentenceComplete())
+            if (!presentationState.ShouldRunSilenceTimer(delay))
                 return;
             silenceClearTimer.Interval = TimeSpan.FromSeconds(delay);
             silenceClearTimer.Start();
         }
 
-        private bool IsLastSentenceComplete()
-        {
-            string caption = lastOriginalCaption.TrimEnd();
-            return caption.Length > 0 && Array.IndexOf(TextUtil.PUNC_EOS, caption[^1]) >= 0;
-        }
-
         private void SilenceClearTimer_Tick(object? sender, EventArgs e)
         {
             silenceClearTimer.Stop();
-            ClearOverlayVisuals();
+            ApplyRender(presentationState.OnSilenceElapsed());
         }
 
-        private void ClearOverlayVisuals()
+        private void ApplyRender(OverlayRenderState render)
         {
-            clearedOriginalPrefix = lastOriginalCaption;
-            clearedTranslationPrefix = lastCurrentTranslation;
-            overlayWasCleared = true;
-            RenderOverlay();
-        }
-
-        private void RenderOverlay()
-        {
-            string original = lastOriginalCaption;
-            if (overlayWasCleared && !string.IsNullOrEmpty(clearedOriginalPrefix) &&
-                original.StartsWith(clearedOriginalPrefix, StringComparison.Ordinal))
-                original = original[clearedOriginalPrefix.Length..].TrimStart();
-
-            string translation = lastCurrentTranslation;
-            if (overlayWasCleared)
-            {
-                if (string.IsNullOrEmpty(original))
-                    translation = string.Empty;
-                else if (!string.IsNullOrEmpty(clearedTranslationPrefix) &&
-                         translation.StartsWith(clearedTranslationPrefix, StringComparison.Ordinal))
-                    translation = translation[clearedTranslationPrefix.Length..].TrimStart();
-            }
-
-            SetTextIfChanged(OriginalCaption, original);
-            SetTextIfChanged(CurrentTranslationRun, translation);
-            SetTextIfChanged(PreviousTranslationRun, overlayWasCleared ? string.Empty : lastPreviousTranslation);
-            SetTextIfChanged(NoticePrefixRun,
-                string.IsNullOrEmpty(original) && string.IsNullOrEmpty(translation) ? string.Empty : lastNoticePrefix);
+            SetTextIfChanged(OriginalCaption, render.Original);
+            SetTextIfChanged(CurrentTranslationRun, render.Translation);
+            SetTextIfChanged(PreviousTranslationRun, render.PreviousTranslation);
+            SetTextIfChanged(NoticePrefixRun, render.NoticePrefix);
         }
 
         private static void SetTextIfChanged(System.Windows.Controls.TextBlock target, string text)
@@ -333,29 +318,48 @@ namespace LiveCaptionsTranslator
 
         private void ClearCompletedSentenceIfNearOverflow()
         {
-            if (!IsLastSentenceComplete())
-                return;
-
             bool originalOverflow = OriginalCaptionCard.Visibility == Visibility.Visible &&
                                     IsNearOverflow(OriginalCaption, OriginalCaptionCard);
             bool translationOverflow = TranslatedCaptionCard.Visibility == Visibility.Visible &&
                                        IsNearOverflow(TranslatedCaption, TranslatedCaptionCard);
             if (originalOverflow || translationOverflow)
             {
-                silenceClearTimer.Stop();
-                ClearOverlayVisuals();
+                if (!string.IsNullOrWhiteSpace(PreviousTranslationRun.Text))
+                {
+                    ApplyRender(presentationState.SuppressPreviousForOverflow());
+                    QueueOverflowCheck();
+                    return;
+                }
+                if (originalOverflow)
+                    OriginalCaption.Text = TrimToFit(OriginalCaption.Text, OriginalCaption, OriginalCaptionCard);
+                if (translationOverflow)
+                    CurrentTranslationRun.Text = TrimToFit(
+                        CurrentTranslationRun.Text, TranslatedCaption, TranslatedCaptionCard);
             }
+        }
+
+        private string TrimToFit(string text, System.Windows.Controls.TextBlock textBlock,
+            FrameworkElement container)
+        {
+            return OverlayPresentationState.TrimLeadingToFit(text,
+                candidate => IsNearOverflow(candidate, textBlock, container));
         }
 
         private bool IsNearOverflow(System.Windows.Controls.TextBlock textBlock, FrameworkElement container)
         {
-            if (string.IsNullOrWhiteSpace(textBlock.Text) || container.ActualWidth <= 20 || container.ActualHeight <= 20)
+            return IsNearOverflow(textBlock.Text, textBlock, container);
+        }
+
+        private bool IsNearOverflow(string text, System.Windows.Controls.TextBlock textBlock,
+            FrameworkElement container)
+        {
+            if (string.IsNullOrWhiteSpace(text) || container.ActualWidth <= 20 || container.ActualHeight <= 20)
                 return false;
 
             double maxTextWidth = Math.Max(1, container.ActualWidth - 26);
             var typeface = new Typeface(textBlock.FontFamily, textBlock.FontStyle,
                 textBlock.FontWeight, textBlock.FontStretch);
-            var formattedText = new FormattedText(textBlock.Text, CultureInfo.CurrentUICulture,
+            var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture,
                 FlowDirection.LeftToRight, typeface, textBlock.FontSize, textBlock.Foreground,
                 VisualTreeHelper.GetDpi(this).PixelsPerDip)
             {
@@ -444,27 +448,12 @@ namespace LiveCaptionsTranslator
 
         private void OnlyModeButton_Click(object sender, RoutedEventArgs e)
         {
-            var button = sender as Button;
-            var symbolIcon = button?.Icon as SymbolIcon;
-
             if (onlyMode == CaptionVisible.SubtitleOnly)
-            {
-                // (0) Subtitle + Translation
-                symbolIcon.Symbol = SymbolRegular.PanelBottom20;
                 OnlyMode = CaptionVisible.Both;
-            }
             else if (onlyMode == CaptionVisible.Both)
-            {
-                // (1) Translation Only
-                symbolIcon.Symbol = SymbolRegular.PanelTopExpand20;
                 OnlyMode = CaptionVisible.TranslationOnly;
-            }
             else
-            {
-                // (2) Subtitle Only
-                symbolIcon.Symbol = SymbolRegular.PanelTopContract20;
                 OnlyMode = CaptionVisible.SubtitleOnly;
-            }
         }
 
         private void SwitchModeButton_Click(object sender, RoutedEventArgs e)
@@ -483,12 +472,45 @@ namespace LiveCaptionsTranslator
             }
         }
 
+        private void ApplyCaptionLocation()
+        {
+            bool translationTop = switchMode == CaptionLocation.TranslationTop;
+            Grid.SetRow(TranslatedCaptionCard, translationTop ? 0 : 1);
+            Grid.SetRow(OriginalCaptionCard, translationTop ? 1 : 0);
+        }
+
+        private void UpdateOnlyModeIcon()
+        {
+            if (OnlyModeButton.Icon is not SymbolIcon icon)
+                return;
+            icon.Symbol = onlyMode switch
+            {
+                CaptionVisible.TranslationOnly => SymbolRegular.PanelTopExpand20,
+                CaptionVisible.SubtitleOnly => SymbolRegular.PanelTopContract20,
+                _ => SymbolRegular.PanelBottom20
+            };
+        }
+
         private void ClickThrough_Click(object sender, RoutedEventArgs e)
         {
+            SetClickThrough(true);
+        }
+
+        public void RestoreInteraction() => SetClickThrough(false);
+
+        private void SetClickThrough(bool enabled)
+        {
+            if (isClickThrough == enabled)
+                return;
             var hwnd = new WindowInteropHelper(this).Handle;
             var extendedStyle = WindowsAPI.GetWindowLong(hwnd, WindowsAPI.GWL_EXSTYLE);
-            WindowsAPI.SetWindowLong(hwnd, WindowsAPI.GWL_EXSTYLE, extendedStyle | WindowsAPI.WS_EX_TRANSPARENT);
-            ControlPanel.Visibility = Visibility.Collapsed;
+            int updated = enabled
+                ? extendedStyle | WindowsAPI.WS_EX_TRANSPARENT
+                : extendedStyle & ~WindowsAPI.WS_EX_TRANSPARENT;
+            WindowsAPI.SetWindowLong(hwnd, WindowsAPI.GWL_EXSTYLE, updated);
+            isClickThrough = enabled;
+            ControlPanel.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
+            ClickThroughStateChanged?.Invoke();
         }
 
         public void ResizeForOnlyMode()
@@ -532,11 +554,13 @@ namespace LiveCaptionsTranslator
         {
             var selectedWeight = System.Windows.FontWeight.FromOpenTypeWeight(
                 Math.Clamp(Translator.Setting.OverlayWindow.FontWeight, 1, 999));
+            var boldWeight = System.Windows.FontWeight.FromOpenTypeWeight(
+                Math.Max(selectedWeight.ToOpenTypeWeight(), FontWeights.Bold.ToOpenTypeWeight()));
             var boldMode = Translator.Setting.OverlayWindow.FontBold;
             OriginalCaption.FontWeight = boldMode is Utils.FontBold.SubtitleOnly or Utils.FontBold.Both ?
-                FontWeights.Bold : selectedWeight;
+                boldWeight : selectedWeight;
             TranslatedCaption.FontWeight = boldMode is Utils.FontBold.TranslationOnly or Utils.FontBold.Both ?
-                FontWeights.Bold : selectedWeight;
+                boldWeight : selectedWeight;
         }
 
         public void ApplyFontStroke()

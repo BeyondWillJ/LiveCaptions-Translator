@@ -26,7 +26,7 @@ namespace LiveCaptionsTranslator.apis
         /// <summary>
         /// Obtiene la URL del endpoint de modelos para una API.
         /// </summary>
-        public static string GetModelsEndpoint(string apiName, string baseUrl)
+        public static string? GetModelsEndpoint(string apiName, string baseUrl)
         {
             return apiName switch
             {
@@ -44,13 +44,15 @@ namespace LiveCaptionsTranslator.apis
         /// <returns>Lista de identificadores de modelos para usar en el chat</returns>
         public static async Task<List<ModelInfo>> FetchModelsAsync(string apiName, string baseUrl, CancellationToken token = default)
         {
-            string endpoint = GetModelsEndpoint(apiName, baseUrl);
+            string? endpoint = GetModelsEndpoint(apiName, baseUrl);
             if (string.IsNullOrEmpty(endpoint))
                 return new List<ModelInfo>();
 
             try
             {
                 var response = await client.GetAsync(endpoint, token);
+                using (response)
+                {
                 if (!response.IsSuccessStatusCode)
                     return new List<ModelInfo>();
 
@@ -62,6 +64,11 @@ namespace LiveCaptionsTranslator.apis
                     "Ollama" => ParseOllamaModels(json),
                     _ => new List<ModelInfo>()
                 };
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
             }
             catch
             {
@@ -71,8 +78,8 @@ namespace LiveCaptionsTranslator.apis
 
         public class ModelInfo
         {
-            public string Id { get; set; }
-            public string DisplayName { get; set; }
+            public string Id { get; set; } = string.Empty;
+            public string DisplayName { get; set; } = string.Empty;
         }
 
         private static List<ModelInfo> ParseLMStudioModels(string json)
@@ -88,15 +95,15 @@ namespace LiveCaptionsTranslator.apis
 
                 foreach (var model in modelsArray.EnumerateArray())
                 {
-                    string type = model.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : null;
+                    string? type = ReadString(model, "type");
                     if (type != "llm")
                         continue;
 
-                    string key = model.TryGetProperty("key", out var keyProp) ? keyProp.GetString() : null;
+                    string? key = ReadString(model, "key");
                     if (string.IsNullOrEmpty(key))
                         continue;
 
-                    string displayName = model.TryGetProperty("display_name", out var dnProp) ? dnProp.GetString() : key;
+                    string displayName = ReadString(model, "display_name") ?? key;
 
                     result.Add(new ModelInfo { Id = key, DisplayName = displayName ?? key });
                 }
@@ -119,7 +126,7 @@ namespace LiveCaptionsTranslator.apis
 
                 foreach (var model in modelsArray.EnumerateArray())
                 {
-                    string name = model.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
+                    string? name = ReadString(model, "name");
                     if (string.IsNullOrEmpty(name))
                         continue;
 
@@ -130,5 +137,11 @@ namespace LiveCaptionsTranslator.apis
 
             return result;
         }
+
+        private static string? ReadString(JsonElement element, string propertyName) =>
+            element.TryGetProperty(propertyName, out JsonElement property) &&
+            property.ValueKind == JsonValueKind.String
+                ? property.GetString()
+                : null;
     }
 }
